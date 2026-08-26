@@ -1,0 +1,67 @@
+[project]
+name = "agentfix"
+version = "0.1.0"
+description = "A teaching coding agent that reasons before it acts: ReAct on LangGraph"
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph>=1.0",
+    "langchain-core>=1.0",
+    "langchain-ollama>=1.0",
+]
+
+[project.optional-dependencies]
+eval = ["datasets>=2.20.0"]
+# Only agent/prebuilt.py needs this: the side-by-side that builds the same agent out of
+# `langchain.agents.create_agent` and its middleware. Optional so the agent you are meant to
+# read has the smaller dependency tree of the two.
+prebuilt = ["langchain>=1.0"]
+dev = ["ruff>=0.6", "black>=24.8", "mypy>=1.11", "coverage>=7.6"]
+
+[project.scripts]
+agentfix = "agentfix.cli:cli_entry"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentfix"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "ARG"]
+
+[tool.ruff.lint.per-file-ignores]
+# ARG (unused arguments) catches dead parameters, and is worth having on in src/. The three
+# exceptions are all the same case: a stand-in has to match the signature of the thing it
+# replaces, whether or not it reads every argument. `llm/fake.py` is a real BaseChatModel that
+# ignores `tools` and `stop` on purpose, and `agent/trace.py` is a real BaseCallbackHandler
+# whose hook signatures are fixed by LangChain — it needs `run_id`, not `serialized`.
+"src/agentfix/llm/fake.py" = ["ARG"]
+"src/agentfix/agent/trace.py" = ["ARG"]
+"src/agentfix/agent/prebuilt.py" = ["ARG"]
+"tests/*" = ["ARG"]
+
+[tool.mypy]
+files = ["src/agentfix"]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = "datasets.*"
+ignore_missing_imports = true
+
+# Both are optional extras, so a checkout with only the base dependencies must still type-check.
+[[tool.mypy.overrides]]
+module = "langchain.*"
+ignore_missing_imports = true
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.coverage.run]
+source = ["src/agentfix"]

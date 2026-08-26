@@ -1,0 +1,42 @@
+{
+  "suite": "workshop",
+  "pass_at_1": 1.0,
+  "peak_prompt_tokens": 6163,
+  "reasoning_turns": 25,
+  "steps_used": 25,
+  "results": [
+    {
+      "task_id": "01-shopcart",
+      "solved": true,
+      "steps_used": 9,
+      "prompt_tokens": 28571,
+      "completion_tokens": 5490,
+      "duration_s": 134.78,
+      "peak_prompt_tokens": 6163,
+      "reasoning_turns": 9,
+      "error": null
+    },
+    {
+      "task_id": "02-invoice",
+      "solved": true,
+      "steps_used": 7,
+      "prompt_tokens": 12481,
+      "completion_tokens": 2622,
+      "duration_s": 95.41,
+      "peak_prompt_tokens": 3216,
+      "reasoning_turns": 7,
+      "error": null
+    },
+    {
+      "task_id": "03-parser",
+      "solved": true,
+      "steps_used": 9,
+      "prompt_tokens": 15373,
+      "completion_tokens": 6420,
+      "duration_s": 207.61,
+      "peak_prompt_tokens": 2506,
+      "reasoning_turns": 9,
+      "error": null
+    }
+  ]
+}

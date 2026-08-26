@@ -1,0 +1,23 @@
+# The agent's context window has to be set on the SERVER, not the request.
+#
+# Deriving the model with the parameter baked in gives you two things: a stable short name
+# (`agentfix-mellum2-thinking`, which is what DEFAULT_MODEL in src/agentfix/config.py expects)
+# and a context window that is right however you reach the server. It is one command, identical
+# on every platform.
+#
+#   ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+#   ollama create agentfix-mellum2-thinking -f Modelfile
+#
+# This is the THINKING checkpoint, not the Instruct one the previous workshop used. Same
+# weights, trained to emit reasoning inside <think>...</think> before it answers. Tool calling
+# is native to it, so there is nothing extra to pull or enable — Ollama's chat template parses
+# both the reasoning and the tool calls, and `ChatOllama` hands them back on separate channels.
+# See src/agentfix/llm/client.py.
+#
+# Verify with `ollama ps` after one request: the CONTEXT column must read 16384.
+# `agentfix doctor` checks this for you, along with the two things that are new in this
+# edition — that the model actually reasons, and that it can still call a tool while doing it.
+
+FROM hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
+
+PARAMETER num_ctx 16384

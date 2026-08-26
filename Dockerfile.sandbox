@@ -1,0 +1,16 @@
+# The sandbox image is deliberately not the project environment: it never installs
+# agentfix. The Docker backend mounts a task's `repo/` read-only at /work and runs
+# `python -m unittest discover -q` over it.
+#
+# Note what is NOT here. The no-framework edition had to pin a pytest version in this
+# file and keep it in step with the one uv.lock resolved for the host, with a test
+# (test_sandbox_image.py) whose whole job was catching the drift — because the two
+# execution backends are the same oracle for the agent's fixes, and an oracle that
+# changes with AGENTFIX_SANDBOX is not one.
+#
+# unittest is in the standard library, so there is no version to pin, nothing to
+# install, and no drift to catch. The base image tag is the entire contract.
+FROM python:3.12-slim
+RUN useradd --create-home runner
+USER runner
+WORKDIR /work
