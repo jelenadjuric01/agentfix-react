@@ -325,8 +325,9 @@ behind it. Needs `--extra prebuilt`.
 - Callbacks carry the trace, reasoning included. `agent/trace.py` is a `BaseCallbackHandler`
   handed to the graph once, so the nodes contain no tracing code at all.
 - Checkpointing: `InMemorySaver` snapshots the state after every node.
-- `ChatOllama` parses tool calls, token usage, malformed arguments — **and separates the
-  reasoning from the answer.** Nothing in this repo parses a `<think>` tag.
+- `ChatOllama` parses tool calls and token usage — **and separates the reasoning from the
+  answer.** Nothing in this repo parses a `<think>` tag. Note what it does *not* parse:
+  malformed tool arguments raise rather than arriving as something you can reply to.
 - Reasoning is a property of the client, not the loop, so `agent/prebuilt.py` inherits a
   reasoning model for free. That is the framework getting something right, and worth saying.
 
