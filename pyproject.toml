@@ -1,5 +1,5 @@
 [project]
-name = "agentfix"
+name = "agentgraph"
 version = "0.1.0"
 description = "A teaching coding agent that reasons before it acts: ReAct on LangGraph"
 requires-python = ">=3.12"
@@ -18,14 +18,14 @@ prebuilt = ["langchain>=1.0"]
 dev = ["ruff>=0.6", "black>=24.8", "mypy>=1.11", "coverage>=7.6"]
 
 [project.scripts]
-agentfix = "agentfix.cli:cli_entry"
+agentgraph = "agentgraph.cli:cli_entry"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agentfix"]
+packages = ["src/agentgraph"]
 
 [tool.ruff]
 line-length = 100
@@ -40,13 +40,13 @@ select = ["E4", "E7", "E9", "F", "ARG"]
 # replaces, whether or not it reads every argument. `llm/fake.py` is a real BaseChatModel that
 # ignores `tools` and `stop` on purpose, and `agent/trace.py` is a real BaseCallbackHandler
 # whose hook signatures are fixed by LangChain — it needs `run_id`, not `serialized`.
-"src/agentfix/llm/fake.py" = ["ARG"]
-"src/agentfix/agent/trace.py" = ["ARG"]
-"src/agentfix/agent/prebuilt.py" = ["ARG"]
+"src/agentgraph/llm/fake.py" = ["ARG"]
+"src/agentgraph/agent/trace.py" = ["ARG"]
+"src/agentgraph/agent/prebuilt.py" = ["ARG"]
 "tests/*" = ["ARG"]
 
 [tool.mypy]
-files = ["src/agentfix"]
+files = ["src/agentgraph"]
 python_version = "3.12"
 strict = true
 
@@ -64,4 +64,4 @@ line-length = 100
 target-version = ["py312"]
 
 [tool.coverage.run]
-source = ["src/agentfix"]
+source = ["src/agentgraph"]

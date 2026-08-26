@@ -10,8 +10,8 @@ import subprocess
 import sys
 import unittest
 
-from agentfix.config import REPO_ROOT
-from agentfix.tasks.loader import load_task, workspace
+from agentgraph.config import REPO_ROOT
+from agentgraph.tasks.loader import load_task, workspace
 
 TASK_DIRS = sorted(p.parent for p in (REPO_ROOT / "tasks" / "workshop").glob("*/task.json"))
 

@@ -11,18 +11,18 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agentfix.sandbox.base import ExecResult
-from agentfix.tasks.loader import Task
+from agentgraph.sandbox.base import ExecResult
+from agentgraph.tasks.loader import Task
 
 # The `llm`-marked tests of the no-framework edition were selected by a pytest marker plus a
 # `--all` flag wired up in conftest.py. unittest has no markers, so the same opt-in is an
 # environment variable and a decorator. Same property: the whole suite passes offline, and the
 # tests that need a live Ollama are opt-in rather than opt-out.
-LLM_TESTS_ENABLED = os.environ.get("AGENTFIX_LLM_TESTS") == "1"
+LLM_TESTS_ENABLED = os.environ.get("AGENTGRAPH_LLM_TESTS") == "1"
 
 requires_ollama = unittest.skipUnless(
     LLM_TESTS_ENABLED,
-    "needs a running Ollama with the model from the README; set AGENTFIX_LLM_TESTS=1",
+    "needs a running Ollama with the model from the README; set AGENTGRAPH_LLM_TESTS=1",
 )
 
 PYTHON_UNITTEST = ("python", "-m", "unittest", "discover", "-q")

@@ -8,16 +8,16 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from agentfix.agent.graph import AgentResult
-from agentfix.llm.fake import FakeChatModel, assistant_text
-from agentfix.eval.humanevalfix import (
+from agentgraph.agent.graph import AgentResult
+from agentgraph.llm.fake import FakeChatModel, assistant_text
+from agentgraph.eval.humanevalfix import (
     HumanEvalFixRow,
     as_unittest_module,
     load_vendored_rows,
     write_task_dir,
 )
-from agentfix.eval.runner import EvalReport, crashed, evaluate
-from agentfix.tasks.loader import load_task
+from agentgraph.eval.runner import EvalReport, crashed, evaluate
+from agentgraph.tasks.loader import load_task
 from tests.support import TempDirTestCase
 
 

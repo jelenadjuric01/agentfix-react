@@ -14,7 +14,7 @@ resolution-markers = [
 ]
 
 [[package]]
-name = "agentfix"
+name = "agentgraph"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

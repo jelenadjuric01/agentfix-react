@@ -6,7 +6,7 @@ import json
 import stat
 import sys
 
-from agentfix.tasks.loader import DEFAULT_PROMPT, load_task, workspace
+from agentgraph.tasks.loader import DEFAULT_PROMPT, load_task, workspace
 from tests.support import TempDirTestCase
 
 
@@ -49,7 +49,7 @@ class TestLoadTask(TempDirTestCase):
 
 class TestWorkspace(TempDirTestCase):
     def _task(self):
-        from agentfix.tasks.loader import Task
+        from agentgraph.tasks.loader import Task
 
         template = self.tmp / "repo"
         template.mkdir()

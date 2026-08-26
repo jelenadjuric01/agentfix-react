@@ -8,9 +8,9 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from agentfix import __version__
-from agentfix.agent.graph import MAX_STEPS, AgentResult
-from agentfix.cli import build_parser, main
+from agentgraph import __version__
+from agentgraph.agent.graph import MAX_STEPS, AgentResult
+from agentgraph.cli import build_parser, main
 
 
 class TestParser(unittest.TestCase):
@@ -54,16 +54,16 @@ class TestMain(unittest.TestCase):
         self.assertEqual(code, 2)
 
     def test_the_exit_code_follows_the_verdict(self):
-        """So `agentfix solve ... && echo ok` behaves sensibly and CI can gate on it."""
+        """So `agentgraph solve ... && echo ok` behaves sensibly and CI can gate on it."""
         solved = AgentResult("t", True, 4, 100, 20, 1.0, (), 100)
-        with mock.patch("agentfix.runner.solve_task", return_value=solved):
+        with mock.patch("agentgraph.runner.solve_task", return_value=solved):
             code, out, _ = self._run(["solve", "tasks/workshop/01-shopcart"])
         self.assertEqual(code, 0)
         self.assertIn("SOLVED", out)
 
     def test_an_unsolved_task_exits_non_zero(self):
         unsolved = AgentResult("t", False, 10, 100, 20, 1.0, (), 100)
-        with mock.patch("agentfix.runner.solve_task", return_value=unsolved):
+        with mock.patch("agentgraph.runner.solve_task", return_value=unsolved):
             code, out, _ = self._run(["solve", "tasks/workshop/01-shopcart"])
         self.assertEqual(code, 1)
         self.assertIn("NOT SOLVED", out)
@@ -71,7 +71,7 @@ class TestMain(unittest.TestCase):
     def test_a_failed_run_reports_a_legible_error_not_a_traceback(self):
         """A broken setup is the common case, so it gets a diagnosis and not a stack trace."""
         boom = ConnectionError("cannot reach http://localhost:11434")
-        with mock.patch("agentfix.runner.solve_task", side_effect=boom):
+        with mock.patch("agentgraph.runner.solve_task", side_effect=boom):
             code, _, err = self._run(["solve", "tasks/workshop/01-shopcart"])
         self.assertEqual(code, 1)
         self.assertNotIn("Traceback", err)
@@ -81,6 +81,6 @@ class TestMain(unittest.TestCase):
     def test_the_summary_reports_how_many_turns_reasoned(self):
         """The headline number of this edition, so it belongs on the one line always printed."""
         solved = AgentResult("t", True, 4, 100, 20, 1.0, (), 100, reasoning_turns=3)
-        with mock.patch("agentfix.runner.solve_task", return_value=solved):
+        with mock.patch("agentgraph.runner.solve_task", return_value=solved):
             _, out, _ = self._run(["solve", "tasks/workshop/01-shopcart"])
         self.assertIn("thinks=3/4", out)

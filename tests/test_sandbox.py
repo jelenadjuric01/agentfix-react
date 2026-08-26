@@ -7,9 +7,9 @@ import sys
 import unittest
 from unittest import mock
 
-from agentfix.sandbox.base import get_backend
-from agentfix.sandbox.docker_backend import DockerBackend
-from agentfix.sandbox.subprocess_backend import SubprocessBackend
+from agentgraph.sandbox.base import get_backend
+from agentgraph.sandbox.docker_backend import DockerBackend
+from agentgraph.sandbox.subprocess_backend import SubprocessBackend
 from tests.support import TempDirTestCase
 
 UNITTEST_CMD = (sys.executable, "-m", "unittest", "discover", "-q")
@@ -64,9 +64,9 @@ class TestSubprocessBackend(TempDirTestCase):
         self._write_test(
             "import os, unittest\n\n\nclass T(unittest.TestCase):\n"
             "    def test_env(self):\n"
-            "        self.assertIsNone(os.environ.get('AGENTFIX_SECRET'))\n"
+            "        self.assertIsNone(os.environ.get('AGENTGRAPH_SECRET'))\n"
         )
-        with mock.patch.dict(os.environ, {"AGENTFIX_SECRET": "leaked"}):
+        with mock.patch.dict(os.environ, {"AGENTGRAPH_SECRET": "leaked"}):
             self.assertTrue(SubprocessBackend().run(self.tmp, UNITTEST_CMD, timeout_s=30).passed)
 
 
@@ -76,11 +76,11 @@ class TestBackendSelection(unittest.TestCase):
             self.assertIsInstance(get_backend(), SubprocessBackend)
 
     def test_the_environment_variable_selects_docker(self):
-        with mock.patch.dict(os.environ, {"AGENTFIX_SANDBOX": "docker"}):
+        with mock.patch.dict(os.environ, {"AGENTGRAPH_SANDBOX": "docker"}):
             self.assertIsInstance(get_backend(), DockerBackend)
 
     def test_an_explicit_argument_wins_over_the_environment(self):
-        with mock.patch.dict(os.environ, {"AGENTFIX_SANDBOX": "docker"}):
+        with mock.patch.dict(os.environ, {"AGENTGRAPH_SANDBOX": "docker"}):
             self.assertIsInstance(get_backend("subprocess"), SubprocessBackend)
 
     def test_a_typo_fails_loudly_rather_than_silently_weakening_isolation(self):

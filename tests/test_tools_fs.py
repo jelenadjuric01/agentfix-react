@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentfix.tools.base import TRUNCATION_MARKER, WorkspaceChanged
-from agentfix.tools.fs import (
+from agentgraph.tools.base import TRUNCATION_MARKER, WorkspaceChanged
+from agentgraph.tools.fs import (
     ListFilesTool,
     PathEscapeError,
     ReadFileTool,

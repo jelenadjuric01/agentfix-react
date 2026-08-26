@@ -1,4 +1,4 @@
-# agentfix (ReAct edition)
+# agentgraph (ReAct edition)
 
 A teaching repository for a workshop on how a coding agent actually works. This is the edition
 where the agent **reasons before it acts** — built on LangGraph, driven by [JetBrains Mellum2
@@ -25,7 +25,7 @@ working. Real inference is the reward, not a prerequisite.
 
 ## What actually changed
 
-One line, in `src/agentfix/llm/client.py`:
+One line, in `src/agentgraph/llm/client.py`:
 
 ```python
 reasoning=True
@@ -59,7 +59,7 @@ Then the consequences, which are not one flag:
   against the Act-only agent's 8) for 30% more tokens and 70% more wall clock; on the hardest
   task, one run spent 46k tokens and 8.5 minutes and solved nothing. The numbers, including the
   run-to-run spread, are under [Measured performance](#measured-performance) — and that trade is
-  why `agentfix eval` reports a `thinks` column next to the cost rather than on its own.
+  why `agentgraph eval` reports a `thinks` column next to the cost rather than on its own.
 
 ## Do I need a special "tool calling" model?
 
@@ -91,7 +91,7 @@ reasoning_content "Okay, the user wants me to fix a failing test. But wait, I ne
 ```
 
 Which is the same lesson as `ChatOllama`-over-`ChatOpenAI` one layer up: pick the right
-integration and the parsing is free. `agentfix doctor` checks both channels for you.
+integration and the parsing is free. `agentgraph doctor` checks both channels for you.
 
 ## Which setup option should you use?
 
@@ -99,7 +99,7 @@ integration and the parsing is free. `agentfix doctor` checks both channels for 
 |---|---|---|---|
 | 1 (default) | 16 GB+ laptop | 16 GB+ | Mellum2 12B **Thinking** via Ollama (~8 GB download) |
 | 2 | weaker laptop | ~4 GB | `qwen3:1.7b` (~1.4 GB) |
-| 3 | browser only | any | Google Colab — `notebooks/agentfix.ipynb` |
+| 3 | browser only | any | Google Colab — `notebooks/agentgraph.ipynb` |
 
 **Option 2 must be a reasoning model.** The previous edition's fallback, `qwen2.5-coder:1.5b`,
 has no thinking mode: point this repo at it and every run still completes, silently, as the
@@ -184,7 +184,7 @@ The installer runs Ollama in the background, so the server is already on `localh
 for the tray icon). Every `uv run ...` command below is identical in PowerShell, and forward
 slashes in task paths are fine.
 
-Two caveats: `agentfix doctor` cannot read RAM on Windows and skips that check rather than
+Two caveats: `agentgraph doctor` cannot read RAM on Windows and skips that check rather than
 failing it, and the subprocess sandbox has not been run on native Windows. If `doctor` reports a
 `sandbox` failure, switch to WSL2 rather than debugging it during the workshop.
 </details>
@@ -196,12 +196,12 @@ failing it, and the subprocess sandbox has not been run on native Windows. If `d
 
 ```bash
 ollama pull hf.co/JetBrains/Mellum2-12B-A2.5B-Thinking-GGUF-Q4_K_M
-ollama create agentfix-mellum2-thinking -f Modelfile
+ollama create agentgraph-mellum2-thinking -f Modelfile
 ```
 
 Note **Thinking**, not the Instruct model the previous workshop used. The `create` step derives a
 model with `num_ctx 16384` baked in and gives it the short name `DEFAULT_MODEL` in
-`src/agentfix/config.py` expects. There is nothing extra to pull or enable for tool calling —
+`src/agentgraph/config.py` expects. There is nothing extra to pull or enable for tool calling —
 see [above](#do-i-need-a-special-tool-calling-model).
 </details>
 
@@ -224,7 +224,7 @@ the reasoning and tool-calling channels were verified.
 <details>
 <summary><b>Option 3 — Google Colab</b></summary>
 
-Open `notebooks/agentfix.ipynb` in Colab and run the cells in order. It installs Ollama, pulls
+Open `notebooks/agentgraph.ipynb` in Colab and run the cells in order. It installs Ollama, pulls
 `qwen3:1.7b`, clones this repo, disables pushing, and runs the agent from a cell.
 </details>
 
@@ -232,7 +232,7 @@ Open `notebooks/agentfix.ipynb` in Colab and run the cells in order. It installs
 
 ```bash
 uv sync --extra dev
-uv run agentfix doctor
+uv run agentgraph doctor
 ```
 
 `doctor` is the fastest way to find a broken setup, because almost every failure here produces a
@@ -255,7 +255,7 @@ A healthy Option 1 machine reports:
 [PASS] ram: 24.0 GB total, 9.8 GB free
 [PASS] ollama installed: /usr/local/bin/ollama
 [PASS] ollama server: reachable at http://localhost:11434
-[PASS] model present: agentfix-mellum2-thinking
+[PASS] model present: agentgraph-mellum2-thinking
 [PASS] generation: 41 tok/s (874 tokens in 21.4s)
 [PASS] context window: 16384 tokens
 [PASS] reasoning: 628 chars of thinking returned
@@ -268,9 +268,9 @@ READY 41 tok/s (874 tokens in 21.4s)
 ## Use
 
 ```bash
-uv run agentfix solve tasks/workshop/01-shopcart --verbose
-uv run agentfix eval --suite workshop
-uv run agentfix eval --suite humanevalfix --limit 5
+uv run agentgraph solve tasks/workshop/01-shopcart --verbose
+uv run agentgraph eval --suite workshop
+uv run agentgraph eval --suite humanevalfix --limit 5
 ```
 
 `--verbose` prints the trace live: one line per model turn, one per tool call, and an indented
@@ -283,7 +283,7 @@ unittest only, no pytest anywhere — including inside the task fixtures the age
 ```bash
 uv run python -m unittest discover -s tests -t .          # 221 tests, offline, ~5s
 uv run python -m unittest tests.test_reasoning -v         # just the ReAct behaviour
-AGENTFIX_LLM_TESTS=1 uv run python -m unittest discover -s tests -t .   # + live-model tests
+AGENTGRAPH_LLM_TESTS=1 uv run python -m unittest discover -s tests -t .   # + live-model tests
 ```
 
 The whole suite runs with no model process anywhere: `llm/fake.py` is a real `BaseChatModel`
@@ -373,7 +373,7 @@ behind it. Needs `--extra prebuilt`.
 
 The single most consequential setting, and the one nothing else will tell you about. Too small a
 window does not error — it silently truncates the middle of the agent's history, which looks like
-a stupid model rather than a misconfigured one. `agentfix doctor` checks it against
+a stupid model rather than a misconfigured one. `agentgraph doctor` checks it against
 `MIN_CONTEXT_LENGTH` and fails if the loaded model reports less.
 
 Reasoning raises the stakes here. Prior thoughts are re-sent on every later turn, so context
@@ -456,11 +456,11 @@ It is **not** a security boundary — test code runs as your user, on your machi
 isolation:
 
 ```bash
-docker build -t agentfix-sandbox -f Dockerfile.sandbox .
-AGENTFIX_SANDBOX=docker uv run agentfix solve tasks/workshop/01-shopcart --verbose
+docker build -t agentgraph-sandbox -f Dockerfile.sandbox .
+AGENTGRAPH_SANDBOX=docker uv run agentgraph solve tasks/workshop/01-shopcart --verbose
 ```
 
-PowerShell wants `$env:AGENTFIX_SANDBOX="docker"` on its own line first. The container mounts the
+PowerShell wants `$env:AGENTGRAPH_SANDBOX="docker"` on its own line first. The container mounts the
 workspace read-only, runs as a non-root user, and has no network. Note that `Dockerfile.sandbox`
 installs nothing — `unittest` is in the standard library, so there is no version to pin and no
 drift between the host and the container to catch.
@@ -492,7 +492,7 @@ is what keeps them runnable everywhere.
 - **Nothing checks whether the reasoning is any good.** A model can reason fluently to the wrong
   conclusion, and this agent will follow it there. The tests are the only thing that catches
   that — which is the same guarantee as the previous edition, doing more work than before.
-- **Reasoning leaking inline is caught once, at setup, not per turn.** `agentfix doctor` detects
+- **Reasoning leaking inline is caught once, at setup, not per turn.** `agentgraph doctor` detects
   reasoning arriving as `<think>` tags in the answer instead of on its own channel. Nothing
   re-checks it mid-run, so if a server stopped honouring `think` partway through, the trace would
   fold the monologue into the action summary and `reasoning_turns` would undercount. Deliberately

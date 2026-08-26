@@ -10,19 +10,19 @@ from __future__ import annotations
 import sys
 import unittest
 
-from agentfix.llm.fake import (
+from agentgraph.llm.fake import (
     FakeChatModel,
     assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
 )
-from agentfix.sandbox.subprocess_backend import SubprocessBackend
-from agentfix.tools.fs import ListFilesTool, ReadFileTool, WriteFileTool
-from agentfix.tools.tests_tool import RunTestsTool
+from agentgraph.sandbox.subprocess_backend import SubprocessBackend
+from agentgraph.tools.fs import ListFilesTool, ReadFileTool, WriteFileTool
+from agentgraph.tools.tests_tool import RunTestsTool
 from tests.support import TempDirTestCase
 
 try:  # the extra is optional; the rest of the suite must not need it
-    from agentfix.agent.prebuilt import build_prebuilt_agent, prebuilt_solved
+    from agentgraph.agent.prebuilt import build_prebuilt_agent, prebuilt_solved
 
     PREBUILT_AVAILABLE = True
 except ImportError:  # pragma: no cover - depends on which extras are installed
@@ -130,8 +130,8 @@ class TestMiddlewareOrderIsLoadBearing(PrebuiltTestCase):
         from langchain.agents import create_agent
         from langchain.agents.middleware import ModelCallLimitMiddleware
 
-        from agentfix.agent.graph import system_prompt
-        from agentfix.agent.prebuilt import LoopGuard, VerifiedStop
+        from agentgraph.agent.graph import system_prompt
+        from agentgraph.agent.prebuilt import LoopGuard, VerifiedStop
 
         def calls_made(limit_first: bool) -> int:
             llm = FakeChatModel(replies=[assistant_text(f"no {i}") for i in range(12)])

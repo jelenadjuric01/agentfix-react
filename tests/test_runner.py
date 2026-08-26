@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentfix.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
-from agentfix.runner import solve_task
+from agentgraph.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
+from agentgraph.runner import solve_task
 from tests.support import TempDirTestCase
 
 FIXED = (

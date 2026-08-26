@@ -11,8 +11,8 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 from langchain_core.outputs import ChatGeneration, Generation, LLMResult
 
-from agentfix.agent.trace import DETAIL_CLIP, Tracer, TraceEvent
-from agentfix.llm.fake import assistant_text, assistant_tool_call
+from agentgraph.agent.trace import DETAIL_CLIP, Tracer, TraceEvent
+from agentgraph.llm.fake import assistant_text, assistant_tool_call
 
 
 class TestTracer(unittest.TestCase):

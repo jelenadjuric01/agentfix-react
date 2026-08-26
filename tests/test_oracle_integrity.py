@@ -10,9 +10,9 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from agentfix.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
-from agentfix.runner import solve_task
-from agentfix.tools.fs import WriteFileTool, is_test_path, relative_files
+from agentgraph.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
+from agentgraph.runner import solve_task
+from agentgraph.tools.fs import WriteFileTool, is_test_path, relative_files
 from tests.support import TempDirTestCase
 from tests.test_runner import SHOPCART
 

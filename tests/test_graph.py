@@ -15,25 +15,25 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import ToolNode
 
-from agentfix.agent.graph import (
+from agentgraph.agent.graph import (
     MAX_GUARD_HITS,
     NUDGE,
     build_graph,
     run_agent,
     system_prompt,
 )
-from agentfix.agent.state import initial_state
-from agentfix.agent.trace import Tracer
-from agentfix.llm.fake import (
+from agentgraph.agent.state import initial_state
+from agentgraph.agent.trace import Tracer
+from agentgraph.llm.fake import (
     FakeChatModel,
     assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
     assistant_tool_calls,
 )
-from agentfix.sandbox.subprocess_backend import SubprocessBackend
-from agentfix.tools.fs import ListFilesTool, ReadFileTool, WriteFileTool
-from agentfix.tools.tests_tool import RunTestsTool
+from agentgraph.sandbox.subprocess_backend import SubprocessBackend
+from agentgraph.tools.fs import ListFilesTool, ReadFileTool, WriteFileTool
+from agentgraph.tools.tests_tool import RunTestsTool
 from tests.support import TempDirTestCase, make_task
 
 BUGGY = "def total(prices):\n    return sum(prices) - 1\n"

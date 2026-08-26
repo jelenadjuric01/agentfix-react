@@ -6,8 +6,8 @@ import os
 import unittest
 from unittest import mock
 
-from agentfix.config import LLMConfig
-from agentfix.llm.client import make_chat_model
+from agentgraph.config import LLMConfig
+from agentgraph.llm.client import make_chat_model
 
 
 class TestMakeChatModel(unittest.TestCase):

@@ -7,9 +7,9 @@ import unittest
 
 from langchain_core.messages import AIMessage
 
-from agentfix.agent.graph import completion_tokens_of
-from agentfix.agent.state import initial_state, keep_larger
-from agentfix.agent.trace import prompt_tokens_of
+from agentgraph.agent.graph import completion_tokens_of
+from agentgraph.agent.state import initial_state, keep_larger
+from agentgraph.agent.trace import prompt_tokens_of
 
 
 class TestKeepLarger(unittest.TestCase):

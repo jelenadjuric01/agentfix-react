@@ -7,9 +7,9 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from agentfix import doctor
-from agentfix.config import BASE_MODEL, LLMConfig
-from agentfix.doctor import (
+from agentgraph import doctor
+from agentgraph.config import BASE_MODEL, LLMConfig
+from agentgraph.doctor import (
     Check,
     _check_context,
     _check_model_present,
@@ -18,13 +18,13 @@ from agentfix.doctor import (
     _check_server,
     report,
 )
-from agentfix.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
+from agentgraph.llm.fake import FakeChatModel, assistant_text, assistant_tool_call
 
 CONFIG = LLMConfig()
 
 
 def patched_json(payload):
-    return mock.patch("agentfix.doctor._get_json", return_value=payload)
+    return mock.patch("agentgraph.doctor._get_json", return_value=payload)
 
 
 class TestChecks(unittest.TestCase):
@@ -94,7 +94,7 @@ class TestReasoningAndToolChecks(unittest.TestCase):
     def _run(self, reply):
         """Run the check with a scripted model standing in for the real client."""
         fake = FakeChatModel(replies=[reply])
-        with mock.patch("agentfix.llm.client.make_chat_model", return_value=fake):
+        with mock.patch("agentgraph.llm.client.make_chat_model", return_value=fake):
             return {check.name: check for check in doctor._check_reasoning_and_tools(LLMConfig())}
 
     def test_a_thinking_model_that_calls_tools_passes_both(self):
@@ -134,7 +134,7 @@ class TestReasoningAndToolChecks(unittest.TestCase):
         """One failure must never hide the others — every check returns rather than raises."""
         broken = mock.Mock()
         broken.bind_tools.side_effect = ConnectionError("server went away")
-        with mock.patch("agentfix.llm.client.make_chat_model", return_value=broken):
+        with mock.patch("agentgraph.llm.client.make_chat_model", return_value=broken):
             checks = {c.name: c for c in doctor._check_reasoning_and_tools(LLMConfig())}
         self.assertFalse(checks["reasoning"].ok)
         self.assertFalse(checks["tool calling"].ok)

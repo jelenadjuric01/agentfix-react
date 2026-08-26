@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from agentfix.sandbox.docker_backend import DEFAULT_IMAGE, DockerBackend
+from agentgraph.sandbox.docker_backend import DEFAULT_IMAGE, DockerBackend
 
 
 class TestDockerArgv(unittest.TestCase):

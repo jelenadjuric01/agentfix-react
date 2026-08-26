@@ -19,7 +19,7 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from agentfix.agent.graph import (
+from agentgraph.agent.graph import (
     MAX_IDLE_TURNS,
     NUDGE,
     NUDGE_AFTER_THINKING,
@@ -27,15 +27,15 @@ from agentfix.agent.graph import (
     acted,
     call_signature,
 )
-from agentfix.agent.graph import run_agent
-from agentfix.agent.trace import TraceEvent, Tracer, describe, reasoning_of
-from agentfix.llm.fake import (
+from agentgraph.agent.graph import run_agent
+from agentgraph.agent.trace import TraceEvent, Tracer, describe, reasoning_of
+from agentgraph.llm.fake import (
     assistant_text,
     assistant_thinking,
     assistant_tool_call,
     unreadable_reply,
 )
-from agentfix.llm.fake import FakeChatModel
+from agentgraph.llm.fake import FakeChatModel
 from tests.test_graph import FIXED, GraphTestCase
 
 THOUGHT = "The test expects 3 and got 2, so the subtraction in total() is wrong."

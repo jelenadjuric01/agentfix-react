@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from agentfix.sandbox.base import ExecResult
-from agentfix.tools.tests_tool import RunTestsTool
+from agentgraph.sandbox.base import ExecResult
+from agentgraph.tools.tests_tool import RunTestsTool
 from tests.support import PYTHON_UNITTEST, FakeBackend, TempDirTestCase
 
 

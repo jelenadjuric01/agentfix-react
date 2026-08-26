@@ -6,8 +6,8 @@ import unittest
 
 from langchain_core.messages import HumanMessage
 
-from agentfix.config import DEFAULT_BASE_URL, DEFAULT_MODEL, LLMConfig
-from agentfix.llm.fake import (
+from agentgraph.config import DEFAULT_BASE_URL, DEFAULT_MODEL, LLMConfig
+from agentgraph.llm.fake import (
     FakeChatModel,
     assistant_invalid_tool_call,
     assistant_text,
