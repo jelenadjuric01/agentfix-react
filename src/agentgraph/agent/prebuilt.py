@@ -28,8 +28,6 @@ which is the correct place for it, and both editions get it right.
 
 What is still genuinely absent, and the reason graph.py does not simply become this file:
 
-  - `invalid_tool_calls` are still dropped. Same gap, same consequence: no reply message for a
-    call the API requires an answer to. tests/test_prebuilt.py pins it.
   - **The verdict cannot survive a checkpoint.** `create_agent` carries its own state schema, so
     there is nowhere to keep a `tests_passed` bool — it has to be recomputed by folding the tool
     artifacts out of the message history. The checkpointer's serialiser round-trips those

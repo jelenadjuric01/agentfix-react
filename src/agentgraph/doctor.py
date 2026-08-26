@@ -247,7 +247,7 @@ def _check_reasoning_and_tools(config: LLMConfig) -> list[Check]:
             f"Thinking one. Without it this agent is the previous workshop's. {CREATE_HINT}",
         )
 
-    calls = reply.tool_calls or reply.invalid_tool_calls
+    calls = reply.tool_calls
     tools_check = Check(
         "tool calling",
         bool(calls),

@@ -281,7 +281,7 @@ uv run agentgraph eval --suite humanevalfix --limit 5
 unittest only, no pytest anywhere — including inside the task fixtures the agent fixes.
 
 ```bash
-uv run python -m unittest discover -s tests -t .          # 221 tests, offline, ~5s
+uv run python -m unittest discover -s tests -t .          # 227 tests, offline, ~5s
 uv run python -m unittest tests.test_reasoning -v         # just the ReAct behaviour
 AGENTGRAPH_LLM_TESTS=1 uv run python -m unittest discover -s tests -t .   # + live-model tests
 ```
@@ -335,10 +335,11 @@ behind it. Needs `--extra prebuilt`.
 - **`handle_tool_errors` defaults to letting a tool's exception kill the run.** You have to opt
   back in — and passing a *string* rather than `True` silently discards the specific error, so
   the model stops being told which argument it forgot.
-- **Neither shape of bad tool-call JSON is handled for you.** `invalid_tool_calls` gets no reply
-  message at all, though the API requires an answer to every call — and a reply the client cannot
-  parse raises straight through the graph and ends the run. Both are ours to catch, in
-  `tools_node` and `agent_node` respectively.
+- **Bad tool-call JSON is not handled for you.** Unparseable arguments raise straight through
+  the graph and end the run; `agent_node` catches that and turns it back into a turn the model
+  can learn from. The rule underneath is the API's — every tool call needs exactly one reply,
+  keyed by `tool_call_id` — and keeping it is ours, which is why even a call the guard refuses
+  to run still produces a message.
 - **Neither loop guard.** LangGraph has no hook for either. LangChain 1.x gives you a seam for
   the action guard (`wrap_tool_call`) but not the policy — and for the *thinking* guard it gives
   you no good seam at all: `after_model` could count idle turns, but the counter would live on
@@ -499,13 +500,11 @@ is what keeps them runnable everywhere.
   not fixed: the fix is a `<think>` parser, and the claim that nothing in this repo parses one is
   worth more than defending against a misconfiguration `doctor` already names.
 - **A reply the client cannot parse costs a turn, not the run — but it does cost a turn.**
-  `ChatOllama` never reports an invalid tool call: measured, it either keeps bad arguments
-  leniently or raises `OutputParserException`. That used to propagate and have the task recorded
-  as a CRASH; `agent_node` now catches it, tells the model what was wrong and asks again, bounded
-  by the same guard as thinking. It is still a wasted turn out of the budget, and a model that
-  cannot emit valid JSON twice running is still abandoned. Consequently the `invalid_tool_calls`
-  handling in `agent/graph.py` is defensive code for a backend this repo is not currently
-  using — its docstring says so.
+  Measured: `ChatOllama` either keeps bad arguments leniently or raises `OutputParserException`.
+  That used to propagate and have the task recorded as a CRASH; `agent_node` now catches it,
+  tells the model what was wrong and asks again, bounded by the same guard as thinking. It is
+  still a wasted turn out of the budget, and a model that cannot emit valid JSON twice running
+  is still abandoned.
 
 ## The workshop exercises
 

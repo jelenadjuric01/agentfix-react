@@ -18,11 +18,6 @@ the Thinking checkpoint that is simply the wrong field. Reasoning arrives on its
 (`additional_kwargs["reasoning_content"]`, see llm/client.py) and `content` is routinely EMPTY
 on a turn that reasoned for three hundred tokens and then called a tool.
 
-Ported unchanged, this file would therefore have printed `(NO REASONING)` on every acting turn
-of an agent that reasons on all of them — a trace that is confidently backwards. Worth sitting
-with, because it is the general shape of the bug: the observability did not break loudly when
-the model changed underneath it. It kept reporting, and started lying.
-
 So reasoning is now a field of its own on `TraceEvent`, printed on its own line, and
 `(NO REASONING)` is computed from the channel it actually lives on — where it now means
 something real: this model skipped thinking on this turn.
@@ -32,8 +27,6 @@ execute, and a tool call whose JSON never parsed. No tool ran, so no tool callba
 graph reports those itself with `note`, and that split is the honest one — the framework
 observes what the framework did.
 
-LangSmith is the production answer to all of this and speaks the same interface; it would slot
-in beside this handler rather than replacing it.
 """
 
 from __future__ import annotations
@@ -97,11 +90,8 @@ def describe(message: AIMessage) -> str:
     Here it is printed only when the model genuinely did not think before acting.
     """
     text = (message.text or "").strip()
-    if message.tool_calls or message.invalid_tool_calls:
-        # `or "unknown"`: an invalid tool call may not even have a parseable name.
-        names = ", ".join(
-            call["name"] or "unknown" for call in [*message.tool_calls, *message.invalid_tool_calls]
-        )
+    if message.tool_calls:
+        names = ", ".join(call["name"] or "unknown" for call in message.tool_calls)
         summary = f"calls {names}"
         if text:
             return f"{summary} -- {text}"

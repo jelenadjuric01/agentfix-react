@@ -9,7 +9,6 @@ from langchain_core.messages import HumanMessage
 from agentgraph.config import DEFAULT_BASE_URL, DEFAULT_MODEL, LLMConfig
 from agentgraph.llm.fake import (
     FakeChatModel,
-    assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
     assistant_tool_calls,
@@ -47,13 +46,6 @@ class TestReplyBuilders(unittest.TestCase):
         with self.assertRaises(AssertionError):
             assistant_tool_calls([("run_tests", {})], call_ids=("c1", "c2"))
 
-    def test_an_invalid_call_lands_in_invalid_tool_calls_not_tool_calls(self):
-        reply = assistant_invalid_tool_call("read_file", '{"path": ')
-        self.assertEqual(reply.tool_calls, [])
-        self.assertEqual(len(reply.invalid_tool_calls), 1)
-
-
-class TestFakeChatModel(unittest.TestCase):
     def test_replies_are_returned_in_order(self):
         llm = FakeChatModel(replies=[assistant_text("one"), assistant_text("two")])
         self.assertEqual(llm.invoke([HumanMessage("go")]).text, "one")

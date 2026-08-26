@@ -129,34 +129,6 @@ def assistant_tool_calls(
     )
 
 
-def assistant_invalid_tool_call(
-    name: str,
-    raw_arguments: str,
-    call_id: str = "call_1",
-    prompt_tokens: int = 10,
-    reasoning: str = "",
-) -> AIMessage:
-    """A reply whose tool-call arguments are not valid JSON.
-
-    Worth having a builder for, because `ToolNode` ignores these completely: without the
-    graph's own handling, the model would receive no answer to a call it made, and the next
-    request would be rejected by the API.
-    """
-    return AIMessage(
-        content="",
-        invalid_tool_calls=[
-            {
-                "name": name,
-                "args": raw_arguments,
-                "id": call_id,
-                "error": "Function arguments are not valid JSON.",
-            }
-        ],
-        usage_metadata=_usage(prompt_tokens, 5),
-        additional_kwargs=_extra(reasoning),
-    )
-
-
 def unreadable_reply(detail: str = "Function arguments are not valid JSON.") -> Exception:
     """A scripted reply the client cannot parse at all — it RAISES instead of returning.
 
@@ -166,9 +138,8 @@ def unreadable_reply(detail: str = "Function arguments are not valid JSON.") -> 
     real, exception and all — the alternative was trusting that a `try` block nobody had ever
     run would do the right thing.
 
-    Not to be confused with `assistant_invalid_tool_call`, which models the OTHER shape — a
-    reply that parses into `invalid_tool_calls`. That is what ChatOpenAI produces; this is what
-    ChatOllama produces. Both are supported because the repo has run against both.
+    This is the only bad-JSON shape the agent can meet, which is why it is the only one the
+    fake can script.
     """
     return OutputParserException(detail)
 

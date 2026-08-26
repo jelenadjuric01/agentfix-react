@@ -49,27 +49,17 @@ What it does NOT do, and this is the part worth the workshop's time:
 
   - `handle_tool_errors` defaults to letting a tool's exception propagate and kill the run.
     The original guaranteed dispatch never raises. We opt back in, below.
-  - Neither shape of malformed tool-call arguments is dealt with for you. `invalid_tool_calls`
-    is silently ignored by ToolNode, producing NO reply message when the API requires an answer
-    to every call the model made — `_answer_invalid` handles that. And a reply the client
-    cannot parse at all raises straight through the graph, ending the run — `agent_node`
-    handles that.
+  - **Malformed tool-call arguments are not dealt with for you.** Measured in
+    `langchain_ollama/chat_models.py`: unparseable arguments are either kept leniently as the
+    raw string (when they arrive inside a dict) or raise `OutputParserException` when they do
+    not. The raise travels straight out of the model call and would end the run; `agent_node`
+    below turns it back into a turn the model can learn from.
 
-    Read the next paragraph before believing that this is what saves you from a small model's
-    bad JSON, because against `ChatOllama` it is not. Measured in
-    `langchain_ollama/chat_models.py`: `_get_tool_calls_from_response` never populates
-    `invalid_tool_calls` at all. Unparseable arguments take one of two other routes — kept
-    leniently as the raw string when they arrive inside a dict (`skip=True`), or raising
-    `OutputParserException` when they do not (`skip=False`). So on this client the invalid
-    path below is unreachable, and the real bad-JSON failure is an exception out of the model
-    call. That one IS handled, in `agent_node` — it used to propagate and have the task
-    recorded as a CRASH, which is an honest report of the wrong thing: nothing was broken, the
-    model simply produced one reply that could not be read.
-
-    The `invalid_tool_calls` handling stays because it is correct for a backend that does
-    populate the field — `ChatOpenAI` does, and this project has used it against Ollama's
-    `/v1` endpoint before. It is defensive code for a client we are not currently using,
-    which is worth knowing when you read the tests that exercise it.
+    The rule that makes this matter is the API's, not ours: every tool call the model made
+    must get exactly one reply, matched by `tool_call_id`, and a request that leaves one
+    unanswered is rejected on the NEXT turn — one step away from the code that caused it.
+    Keeping that invariant is ours. See `tools_node`, where even a call the guard REFUSES to
+    run still produces a message.
   - Either loop guard. LangGraph has no hook for either one. LangChain 1.x middleware gives
     you a seam for the action guard (`wrap_tool_call`) but not the policy, and nothing at all
     for "this model has been thinking for three turns and has not moved".
@@ -130,11 +120,6 @@ UNREADABLE_REPLY = (
     "Your last reply contained a tool call whose arguments were not valid JSON, so the reply "
     "could not be read and nothing ran. Send the call again, with the arguments as a single "
     "well-formed JSON object."
-)
-
-INVALID_ARGUMENTS_MESSAGE = (
-    "Your arguments for {name} were not valid JSON, so nothing ran. Send the call again "
-    "with a single well-formed JSON object."
 )
 
 
@@ -260,43 +245,25 @@ def call_signature(call: dict[str, Any]) -> str:
     return f"{call['name']}::{sorted((call.get('args') or {}).items())!r}"
 
 
-def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str, bool]]:
-    """Every call the model made this turn, as (call, guard signature, arguments parsed?).
-
-    One list, from the two fields LangChain splits the model's turn across: `tool_calls` and
-    `invalid_tool_calls`. Flattening them here is what lets the guard see both — the reason
-    that matters is parity with the no-framework edition, where malformed arguments arrived as
-    an ordinary call carrying a sentinel and so were guarded for free. On this side they arrive
-    on a separate field and would otherwise be exempt, letting a model stuck on one malformed
-    call retry until the entire step budget was gone.
-
-    `invalid_tool_calls` is always empty with `ChatOllama`, so in this configuration the second
-    half of this function is dead. See the module docstring for what happens instead.
-
-    Bad JSON comes first so that a turn mixing valid and invalid calls still answers all of
-    them even if something below goes wrong mid-list.
+def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str]]:
+    """Every call the model made this turn, paired with its guard signature.
 
     Every call is assumed to carry an `id`, which is what a reply is paired with. Upstream types
     it `str | None`; ChatOllama always synthesises a uuid, so it is always there for us. A
     backend that omitted one would fail inside ToolMessage validation, and that is the right
     outcome — there is no correct reply to a call you cannot address.
     """
-    invalid = [
-        (dict(bad), f"{bad.get('name') or 'unknown'}::INVALID::{bad.get('args')!r}", False)
-        for bad in message.invalid_tool_calls
-    ]
-    valid = [(dict(call), call_signature(dict(call)), True) for call in message.tool_calls]
-    return invalid + valid
+    return [(dict(call), call_signature(dict(call))) for call in message.tool_calls]
 
 
 def acted(message: AIMessage) -> bool:
     """Did this turn ask for anything to happen?
 
-    A tool call whose JSON did not parse still counts as acting: the model tried to do
-    something and the attempt was mangled in transit, which is a different failure from
-    deliberating in silence — and `_answer_invalid` will tell it so specifically.
+    The distinction the thinking guard is built on: a turn that called a tool moved something,
+    a turn that only talked did not. A reply the client could not parse at all never becomes a
+    message and so never reaches here — `agent_node` handles that one.
     """
-    return bool(message.tool_calls or message.invalid_tool_calls)
+    return bool(message.tool_calls)
 
 
 def guard_observation(name: str, hits: int) -> str:
@@ -366,8 +333,8 @@ def build_graph(
         except OutputParserException as error:
             # The model said something the client could not read. Measured in
             # `langchain_ollama`: unparseable tool-call arguments that did not arrive inside a
-            # dict raise from here rather than appearing as `invalid_tool_calls`, so this — not
-            # `_answer_invalid` below — is the real bad-JSON path on this client.
+            # dict raise from here rather than being reported as a malformed call, so this is
+            # the bad-JSON path on this client — there is no other one.
             #
             # Unhandled, it ends the run: `solve_task` propagates it and the task is recorded
             # as a CRASH, which is honest but wrong. Nothing is broken. The model produced one
@@ -413,24 +380,6 @@ def build_graph(
             "idle_turns": 0 if acted(reply) else state["idle_turns"] + 1,
         }
 
-    def _answer_invalid(call: dict[str, Any]) -> ToolMessage:
-        """A tool call whose JSON did not parse. ToolNode ignores these entirely.
-
-        Naming the real problem matters: "missing argument: path" would be misleading, because
-        the model probably did send a path — inside broken JSON.
-
-        Unreachable with `ChatOllama`, which raises rather than reporting an invalid call. See
-        the module docstring.
-        """
-        name = call.get("name") or "unknown"
-        tracer.note("tool", name, "invalid JSON arguments — not executed")
-        return ToolMessage(
-            content=INVALID_ARGUMENTS_MESSAGE.format(name=name),
-            tool_call_id=call["id"],
-            name=name,
-            status="error",
-        )
-
     def tools_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         """Guard the model's calls, then let ToolNode run whatever survives.
 
@@ -453,7 +402,7 @@ def build_graph(
         signature = state["last_signature"]
         hits = state["guard_hits"]
 
-        for call, current, parsed in requested_calls(message):
+        for call, current in requested_calls(message):
             name = str(call.get("name") or "unknown")
 
             # Loop guard. A model that repeats a call verbatim learned nothing from the result,
@@ -466,23 +415,16 @@ def build_graph(
                         content=guard_observation(name, hits),
                         tool_call_id=call["id"],
                         name=name,
-                        # Marked an error only for the JSON case, matching what the model would
-                        # have been told had the call been answered normally.
-                        **({"status": "error"} if not parsed else {}),
                     )
                 )
-                kind = "invalid call" if not parsed else "call"
-                tracer.note("tool", name, f"guarded — identical {kind} #{hits + 1} in a row")
+                tracer.note("tool", name, f"guarded — identical call #{hits + 1} in a row")
                 continue
 
             # Progress: reset the counter and remember this call as the new baseline.
             hits = 0
             signature = current
 
-            if parsed:
-                runnable.append(call)
-            else:
-                replies.append(_answer_invalid(call))
+            runnable.append(call)
 
         if runnable:
             # One invocation for the whole turn. The synthetic message exists because ToolNode

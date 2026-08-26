@@ -2,9 +2,10 @@
 
 The only file in the project that performs network I/O, and still one function — because the
 framework's job is exactly this. The client speaks Ollama's protocol, parses tool calls into
-`AIMessage.tool_calls`, records token usage in `usage_metadata`, puts unparseable arguments in
-`invalid_tool_calls`, and — new in this edition — separates the model's reasoning from its
-answer. The no-framework edition hand-wrote all of that.
+`AIMessage.tool_calls`, records token usage in `usage_metadata`, and — new in this edition —
+separates the model's reasoning from its answer. The no-framework edition hand-wrote all of
+that. What it does NOT do is rescue unparseable tool arguments: those raise, and
+`agent/graph.py` catches it.
 
 ## The one line that makes this the ReAct edition
 
@@ -46,22 +47,6 @@ had is re-sent on every subsequent turn, and thoughts are the largest part of a 
 grows faster here than it did in the Instruct edition, which is why `max_tokens` had to grow
 and why the peak-context column in `agentgraph eval` is worth watching.
 
-## Why `ChatOllama` and not `ChatOpenAI`
-
-Ollama serves an OpenAI-compatible endpoint at `/v1`, so `ChatOpenAI` works against it — and
-an earlier version of this project used it, to keep the wire format byte-identical to the
-no-framework original. It cost two silent misconfigurations, both measured:
-
-  - `ChatOpenAI.max_tokens` is aliased to OpenAI's newer `max_completion_tokens`, and that is
-    the key it puts on the wire. Ollama's `/v1` ignores it. Asking for 8 tokens:
-    `max_completion_tokens=8` produced 692; `max_tokens=8` produced 8.
-  - `/v1` drops the `options` block entirely, so `num_ctx` never arrived either (`ollama ps`
-    still reported 4096) and the context window had to be baked into a derived model instead.
-
-`ChatOllama` talks to Ollama's own API, where all of these are first-class typed fields —
-including `think`, which the compatibility endpoint has no concept of at all. The general
-lesson, and the reason this file is worth reading twice: a compatibility endpoint accepts the
-requests it does not honour. Nothing errored, nothing warned.
 """
 
 from __future__ import annotations

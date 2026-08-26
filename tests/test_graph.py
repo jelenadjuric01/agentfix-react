@@ -11,7 +11,6 @@ import sys
 import time
 from unittest import mock
 
-from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.prebuilt import ToolNode
 
@@ -26,7 +25,6 @@ from agentgraph.agent.state import initial_state
 from agentgraph.agent.trace import Tracer
 from agentgraph.llm.fake import (
     FakeChatModel,
-    assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
     assistant_tool_calls,
@@ -193,45 +191,6 @@ class TestFailuresBecomeObservations(GraphTestCase):
         )
         content = self._last_tool_content(llm).lower()
         self.assertTrue("path" in content or "required" in content)
-
-    def test_arguments_that_are_not_valid_json_are_still_answered(self):
-        """ToolNode ignores these entirely, producing no reply. The API requires one."""
-        _, llm = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": "cart.py"'),
-                assistant_text("giving up"),
-            ]
-        )
-        answers = [m for m in llm.calls[-1] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(len(answers), 1, "an unanswered tool call breaks the next request")
-        self.assertIn("JSON", str(answers[-1].content))
-
-    def test_a_turn_mixing_a_broken_and_a_good_call_answers_both(self):
-        """`requested_calls` exists to flatten the two fields; nothing tested them together.
-
-        The API rejects a request that leaves any `tool_call_id` unanswered, so a turn carrying
-        one unparseable call and one good one has to come back with two replies.
-        """
-        mixed = AIMessage(
-            content="",
-            tool_calls=[{"name": "run_tests", "args": {}, "id": "good"}],
-            invalid_tool_calls=[
-                {
-                    "name": "read_file",
-                    "args": '{"path": ',
-                    "id": "bad",
-                    "error": "Function arguments are not valid JSON.",
-                }
-            ],
-            usage_metadata={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
-        )
-        _, llm = self.run_with([mixed, assistant_text("giving up")], max_steps=2)
-        answers = [m for m in llm.calls[-1] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(
-            [m.tool_call_id for m in answers],
-            ["bad", "good"],
-            "bad JSON is answered first, and neither call is left unanswered",
-        )
 
     def test_a_tool_that_raises_does_not_end_the_run(self):
         """ToolNode's default lets the exception through; the graph opts back in."""
@@ -419,21 +378,6 @@ class TestBudgetAndGuard(GraphTestCase):
         )
         self.assertFalse(result.solved)
         self.assertLessEqual(llm.index, 4)
-
-    def test_repeated_malformed_json_also_trips_the_guard(self):
-        """Parity with the original, where bad arguments arrived as an ordinary call and were
-        guarded for free. On this side they arrive on a separate field, so it takes code."""
-        result, llm = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": ', call_id=f"c{i}")
-                for i in range(10)
-            ],
-            max_steps=10,
-        )
-        self.assertFalse(result.solved)
-        # Literals, not MAX_GUARD_HITS: an assertion built from the constant under test passes
-        # at any value of it. Three strikes, so at most four model turns.
-        self.assertLessEqual(llm.index, 4, "a stuck model must be abandoned")
 
     def test_the_second_repeat_warns_that_the_run_will_be_abandoned(self):
         """Only the first wording was pinned; the escalation could be deleted unnoticed."""

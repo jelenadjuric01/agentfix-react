@@ -12,7 +12,6 @@ import unittest
 
 from agentgraph.llm.fake import (
     FakeChatModel,
-    assistant_invalid_tool_call,
     assistant_text,
     assistant_tool_call,
 )
@@ -157,22 +156,6 @@ class TestMiddlewareOrderIsLoadBearing(PrebuiltTestCase):
 
 class TestWhatIsStillMissing(PrebuiltTestCase):
     """The gaps that keep agent/graph.py from collapsing into a constructor call."""
-
-    def test_arguments_that_are_not_valid_json_go_unanswered(self):
-        """Still dropped, exactly as ToolNode drops them. Our graph answers them by hand.
-
-        The consequence is not cosmetic: the API rejects any request that leaves a
-        `tool_call_id` unanswered, so against a real server the NEXT turn fails.
-        """
-        final, _ = self.run_with(
-            [
-                assistant_invalid_tool_call("read_file", '{"path": "cart.py"'),
-                assistant_text("giving up"),
-            ],
-            max_steps=2,
-        )
-        answers = [m for m in final["messages"] if getattr(m, "tool_call_id", None)]
-        self.assertEqual(answers, [], "if this ever fails, the framework fixed the gap")
 
     def test_the_guards_counters_leak_between_runs_of_one_agent(self):
         """The consequence of keeping guard state on the middleware instead of in the state.

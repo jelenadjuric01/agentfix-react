@@ -264,8 +264,7 @@ class TestAnUnreadableReplyIsRecoverable(GraphTestCase):
     """A reply the client cannot parse must cost a turn, not the run.
 
     `ChatOllama` raises `OutputParserException` on malformed tool-call arguments rather than
-    reporting them as an invalid call, so this — not `invalid_tool_calls` — is the real bad-JSON
-    path on this client. Before the recovery it propagated out of the agent and the task was
+    reporting them as a call it could not read, so this is the only bad-JSON path there is. Before the recovery it propagated out of the agent and the task was
     recorded as a CRASH: a harness failure, for what is really just the model getting one reply
     wrong.
     """
