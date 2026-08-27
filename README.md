@@ -509,7 +509,23 @@ is what keeps them runnable everywhere.
 
 ## The workshop exercises
 
-Not in this repository yet. The two functions the previous edition had students write —
-`route_after_agent` and the loop guard — are the two this edition had to change, which is what
-makes them the natural exercises here. They will land as `exercises/`, matching the sibling
-repos' layout.
+One stage, in `exercises/stage_1/`, and `main` is the stubbed branch: on a fresh clone that stage
+fails and `uv run agentgraph solve ...` raises `NotImplementedError`. That is the intended
+starting point, not a broken checkout.
+
+    uv run python -m unittest exercises.stage_1.test_stage_1 -v
+
+You write the **thinking guard** — `acted`, the `idle_turns` bookkeeping in `agent_node`, the tail
+of `route_after_agent`, and which of the two nudges a stalled turn earns. The tests run against
+the scripted fake model, so the stage can be finished offline and in any setup tier.
+
+One stage rather than the previous edition's two, because this edition forced exactly one new
+decision. `route_after_agent`'s "the tests decide when a run is over" and the repeated-call guard
+are both written for you here: neither changed when the model started reasoning, and reading them
+is the fastest way into the stage that did. What changed is that a turn can now cost three hundred
+tokens and move nothing, and neither of those guards can see a turn like that — one watches the
+verdict, the other watches actions, and a turn that only thinks produces neither.
+
+The answer, if you want it: `git checkout stage-1-solution`, or `git diff main stage-1-solution --
+src/agentgraph/agent/graph.py` to read it without moving your working tree. The `solutions` branch
+is the same code. See [`exercises/README.md`](exercises/README.md).

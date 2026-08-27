@@ -44,6 +44,7 @@ select = ["E4", "E7", "E9", "F", "ARG"]
 "src/agentgraph/agent/trace.py" = ["ARG"]
 "src/agentgraph/agent/prebuilt.py" = ["ARG"]
 "tests/*" = ["ARG"]
+"exercises/*" = ["ARG"]
 
 [tool.mypy]
 files = ["src/agentgraph"]
