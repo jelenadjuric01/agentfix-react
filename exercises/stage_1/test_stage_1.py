@@ -92,18 +92,30 @@ class TestWhatCountsAsActing(unittest.TestCase):
     """Blank 1. Two lines of test for one line of code, because everything else rests on it."""
 
     def test_a_turn_with_a_tool_call_acted(self):
-        self.assertTrue(acted(assistant_tool_call("run_tests", {})))
+        self.assertTrue(
+            acted(assistant_tool_call("run_tests", {})),
+            "a turn that called a tool asked for something to happen",
+        )
 
     def test_a_turn_that_only_reasoned_did_not_act(self):
         """Three hundred tokens of deliberation is not an action."""
-        self.assertFalse(acted(assistant_thinking(THOUGHT)))
+        self.assertFalse(
+            acted(assistant_thinking(THOUGHT)),
+            "reasoning is not an action: this turn moved nothing",
+        )
 
     def test_prose_is_not_an_action_either(self):
-        self.assertFalse(acted(assistant_text("I have fixed the bug.")))
+        self.assertFalse(
+            acted(assistant_text("I have fixed the bug.")),
+            "prose is not an action either",
+        )
 
     def test_reasoning_does_not_stop_a_tool_call_from_counting(self):
         """ReAct means thinking and acting in the SAME turn. That turn acted."""
-        self.assertTrue(acted(assistant_tool_call("run_tests", {}, reasoning=THOUGHT)))
+        self.assertTrue(
+            acted(assistant_tool_call("run_tests", {}, reasoning=THOUGHT)),
+            "the reasoning is not what decides this — the tool call is",
+        )
 
 
 class TestTheThinkingGuardEndsTheRun(Stage1TestCase):
