@@ -256,12 +256,14 @@ def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str]]:
     return [(dict(call), call_signature(dict(call))) for call in message.tool_calls]
 
 
-def acted(message: AIMessage) -> bool:  # noqa: ARG001
-    """Did this turn ask for anything to happen? The distinction the thinking guard is built on.
+def acted(message: AIMessage) -> bool:
+    """Did this turn ask for anything to happen?
 
-    EXERCISE(stage-1): see exercises/stage_1/README.md
+    The distinction the thinking guard is built on: a turn that called a tool moved something,
+    a turn that only talked did not. A reply the client could not parse at all never becomes a
+    message and so never reaches here — `agent_node` handles that one.
     """
-    raise NotImplementedError("stage 1: did this turn ask for anything to happen?")
+    return bool(message.tool_calls)
 
 
 def guard_observation(name: str, hits: int) -> str:
@@ -371,10 +373,11 @@ def build_graph(
             "completion_tokens": completion_tokens_of(reply),
             "peak_prompt_tokens": prompt_tokens_of(reply),
             "reasoning_turns": 1 if thought else 0,
-            # `idle_turns` belongs here, and it is not written like any of the keys above it.
-            # See AgentState.idle_turns. Absent for now, so the counter never moves.
-            #
-            # EXERCISE(stage-1): see exercises/stage_1/README.md
+            # The one absolute value rather than a delta, because this counter has to reset
+            # and a reducer cannot express a reset. See AgentState.idle_turns. This node is its
+            # only writer, and it is the node that knows whether the turn it just took asked
+            # for anything.
+            "idle_turns": 0 if acted(reply) else state["idle_turns"] + 1,
         }
 
     def tools_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -470,13 +473,15 @@ def build_graph(
     def nudge_node(state: AgentState) -> dict[str, Any]:
         """A reply that acted on nothing is not a stop condition — say so and go again.
 
-        Right now every such turn gets the same correction, and there are two to choose from.
-
-        EXERCISE(stage-1): see exercises/stage_1/README.md
+        Which of the two nudges depends on whether the model thought first, because the two
+        failures are different and deserve different corrections. A model that said nothing
+        and did nothing needs pointing at the failure; a model that reasoned its way to a
+        conclusion and then stopped needs telling that a conclusion is not a change.
         """
         message = state["messages"][-1]
         assert isinstance(message, AIMessage)
-        return {"messages": [HumanMessage(content=NUDGE)]}
+        text = NUDGE_AFTER_THINKING if reasoning_of(message) else NUDGE
+        return {"messages": [HumanMessage(content=text)]}
 
     def route_after_agent(state: AgentState) -> str:
         """Where to go after a model turn. The only place a run can end successfully."""
@@ -505,11 +510,37 @@ def build_graph(
         if acted(message):
             return "tools"
 
-        # No action: the model spent a turn and asked for nothing. Four answers from here, and
-        # their order is as much of the decision as the answers are.
-        #
-        # EXERCISE(stage-1): see exercises/stage_1/README.md
-        raise NotImplementedError("stage 1: the model asked for nothing — now what?")
+        # No action. This is the only place the run can end successfully — and it ends because
+        # the tests pass, not because the model stopped calling tools. Checked FIRST, before
+        # the guards below, so the closing turn of a solved run is never mistaken for a model
+        # that has stalled.
+        if is_done(state):
+            return END
+        if state["step"] >= max_steps:
+            return END
+
+        # The thinking loop guard, and the reason this edition needed one. A model that reasons
+        # and does not act has produced the most expensive kind of turn there is and moved
+        # nothing, and a model that does it twice running is not deliberating — it is stuck in
+        # a way the action guard above cannot see, because there is no action to compare.
+        if state["idle_turns"] >= MAX_IDLE_TURNS:
+            # Worded from what was actually observed, which is "no tool call" — NOT "turns of
+            # reasoning". `idle_turns` counts any turn that asked for nothing, and a turn can
+            # ask for nothing without having reasoned (a model that skipped thinking, or a
+            # reply cut off by `max_tokens` before it got to the call). Saying "reasoning"
+            # would send whoever reads this trace looking for deliberation that never
+            # happened — the exact failure this edition exists to fix, reintroduced in the
+            # log line. `thought` says only what this turn shows.
+            thought = "after reasoning" if reasoning_of(message) else "without reasoning"
+            tracer.note(
+                "llm",
+                "assistant",
+                f"abandoned — {state['idle_turns']} consecutive turns with no tool call "
+                f"({thought} on the last one)",
+            )
+            return END
+
+        return "nudge"
 
     def route_after_tools(state: AgentState) -> str:
         """Stop if the model is stuck or out of budget; otherwise take another turn.
