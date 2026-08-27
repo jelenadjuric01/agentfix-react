@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+import subprocess
+import sys
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -11,6 +13,26 @@ from unittest import mock
 from agentgraph import __version__
 from agentgraph.agent.graph import MAX_STEPS, AgentResult
 from agentgraph.cli import build_parser, main
+
+
+class TestModuleExecution(unittest.TestCase):
+    """`python -m agentgraph.cli` has to work, not just the installed console script.
+
+    The course lesson ships this package uninstalled and runs it with `-m`. Without the
+    `__main__` guard that path imports the module and exits 0 without running anything, so every
+    command appears to succeed silently — which is why this is a subprocess test rather than a
+    call to `main()`.
+    """
+
+    def test_the_module_can_be_run_directly(self):
+        completed = subprocess.run(
+            [sys.executable, "-m", "agentgraph.cli", "--version"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn(__version__, completed.stdout)
 
 
 class TestParser(unittest.TestCase):

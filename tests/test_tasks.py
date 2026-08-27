@@ -5,9 +5,33 @@ from __future__ import annotations
 import json
 import stat
 import sys
+import unittest
+from pathlib import Path
 
+import agentgraph.config
+from agentgraph.config import REPO_ROOT
 from agentgraph.tasks.loader import DEFAULT_PROMPT, load_task, workspace
 from tests.support import TempDirTestCase
+
+
+class TestRepoRoot(unittest.TestCase):
+    """Where the CLI looks for fixtures and writes results, and why it is not counted levels.
+
+    This package ships in two shapes — `src/agentgraph/` in the repository, `agentgraph/` at the
+    root of a JetBrains Academy task directory — and a fixed `.parents[n]` cannot be right for
+    both. Counted from the package in the Academy layout it landed on the lesson directory,
+    where there are no fixtures at all: `eval` then found no tasks and wrote its results
+    somewhere nobody would look.
+    """
+
+    def test_the_root_is_the_directory_that_holds_the_fixtures(self):
+        self.assertTrue((REPO_ROOT / "tasks" / "workshop").is_dir())
+
+    def test_the_packages_own_tasks_module_is_not_mistaken_for_the_fixtures(self):
+        """`agentgraph/tasks/` is a subpackage, and searching from the package would match it."""
+        package_dir = Path(agentgraph.config.__file__).resolve().parent
+        self.assertTrue((package_dir / "tasks").is_dir(), "the trap this test is about")
+        self.assertNotEqual(REPO_ROOT, package_dir)
 
 
 class TestLoadTask(TempDirTestCase):

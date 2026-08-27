@@ -100,3 +100,12 @@ def main(argv: list[str] | None = None) -> int:
 def cli_entry() -> None:
     """The console-script entry point. Translates the return value into a process exit code."""
     sys.exit(main())
+
+
+# The same entry point, reached as `python -m agentgraph.cli`. Not redundant: the console script
+# above exists only where the package was installed, and `python -m` is how this package is run
+# where it is not — the JetBrains Academy lesson, whose `run.py` shells out to exactly this. It
+# was missing once, and the symptom is the worst kind: every command exited 0 having done
+# nothing, because importing the module is all `-m` does on its own.
+if __name__ == "__main__":
+    cli_entry()

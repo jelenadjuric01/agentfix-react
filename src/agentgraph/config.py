@@ -6,11 +6,34 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-# Task fixtures and result files live in the repo, not in whatever directory the student
-# happened to be standing in when they ran the CLI. `.parents[2]` climbs
-# src/agentgraph/ -> src/ -> repo root, derived rather than hardcoded so the path is right
-# however the CLI was invoked.
-REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Task fixtures and result files live with the code, not in whatever directory the student
+# happened to be standing in when they ran the CLI — so this is derived from `__file__` rather
+# than from the working directory.
+#
+# Found by climbing rather than by counting levels, because this package ships in two shapes and
+# a fixed `.parents[n]` cannot be right for both: `src/agentgraph/` here, and `agentgraph/` at
+# the root of a JetBrains Academy task directory, which is one level shallower. Counting levels
+# in the Academy layout resolved to the LESSON directory, where `tasks/` does not exist — so
+# `eval` reported no fixtures and wrote its results nowhere near the repo.
+def _find_root() -> Path:
+    """The nearest directory ABOVE this package that holds the task fixtures.
+
+    `parents[1:]` skips the package directory itself, which has a `tasks/` of its own —
+    `tasks/loader.py`, the module that says what a task is. Searching from the package would
+    match that subpackage and never look further.
+    """
+    here = Path(__file__).resolve()
+    for candidate in here.parents[1:]:
+        if (candidate / "tasks").is_dir():
+            return candidate
+    # No fixtures anywhere above us: an installed wheel, or a checkout with `tasks/` removed.
+    # The src-layout answer is the best guess left, and every caller is about to report a
+    # missing path with it in the message.
+    return here.parents[2] if len(here.parents) > 2 else here.parent
+
+
+REPO_ROOT = _find_root()
 
 # Ollama's own API root — not the `/v1` compatibility endpoint. `ChatOllama` speaks the
 # native protocol, which is the only one that honours `num_ctx`, `num_predict` and `think`;
