@@ -14,6 +14,13 @@ them:
 | `agentfix-langchain` | LangGraph | no |
 | **`agentfix-react`** (this one) | LangGraph | **yes** |
 
+All three are also packaged as a single JetBrains Academy course,
+`Simple-Python-Fixing-Agent-Framework`, where they become four lessons in one IDE project. The
+course runs everything through a `run.py` at the course root instead of `uv run`, and names the
+packages `agentfix` / `agentlang` / `agentgraph` so all three can live side by side. This
+repository is the standalone version: same agent, same exercise, `uv` and git branches instead of
+the plugin.
+
 The previous edition ended on a measurement and an open question. Its agent solved every task
 and reasoned on **0 of 7** turns: seven tool-calling turns carrying no explanation, and the only
 prose arriving *after* the fix was already verified. That is the Act-only baseline from the
@@ -447,6 +454,40 @@ And run 2 is the same agent taking nine turns and three times the tokens for the
   previous edition too; reasoning just made it obvious. Two runs is not a measurement either —
   it is enough to know that one run is not.
 
+### The 20-task benchmark, and where the three editions land
+
+The workshop suite is three tasks and one attempt each, which is why the two runs above disagree.
+The vendored HumanEvalFix subset is 20 independent bugs with real tests, and it is the number worth
+quoting (`results/humanevalfix.json`). Same model family, same 10-step budget, one attempt per task
+in every row:
+
+| Edition | pass@1 | median steps | tokens | wall clock | peak prompt |
+|---|---|---|---|---|---|
+| `agentfix-workshop` — no framework, Instruct | 0.60 (12/20) | 7 | 185,235 | 8m08s | 2,998 |
+| `agentfix-langchain` — LangGraph, Instruct | 0.45 (9/20) | 10 | 237,651 | 8m15s | 3,929 |
+| **this one** — LangGraph, Thinking | **0.80 (16/20)** | **5** | **415,333** | **52m25s** | **12,599** |
+
+Read the first two columns together, because this is the claim of the whole edition holding up at
+20 tasks rather than three: reasoning solved *more* in *fewer* turns. Fourteen of the sixteen
+successes took exactly five steps — run the tests, look, write, verify — against a median of 7 and
+10 for the Act-only editions, whose medians are sitting on or near the budget cap. Reasoning on
+every turn again: `reasoning_turns` equals `steps_used` on all 20 runs.
+
+Two of the four failures ended at 6 steps rather than 10, stopped by a guard instead of the budget.
+A stuck thinking model is now abandoned rather than nudged until the money runs out, and on the most
+expensive kind of turn there is that is worth roughly half the wasted run.
+
+Then the bill, which is the same story as the two workshop runs above at four times the scale:
+**1.75× the tokens of the Instruct edition for 6× the wall clock**, and a peak prompt of 12,599
+against a 16,384-token window — three-quarters of the way to overflow on a benchmark of *small*
+bugs. Fifty-two minutes for twenty one-file fixes is not a number you put in front of a room live.
+
+One caution on the middle row: do not read 0.60 → 0.45 as a cost of the framework. `temperature` is
+0.6 in all three, so a single 20-task run is noisy, and the two Instruct editions take identical
+step counts (8, 8, 7) on the tasks they both solve. For scale, making the stop condition real in the
+no-framework edition moved its pass@1 from 0.50 to 0.60 — larger than the gap between the first two
+rows. The plumbing is not what moves this number. Reasoning is, and it charges for it.
+
 Eval is deliberately sequential, and that is measured rather than assumed: against this Ollama
 server, three requests took 1.7s run one after another and 2.8s run concurrently. One local
 model is one set of weights being time-shared.
@@ -529,3 +570,7 @@ verdict, the other watches actions, and a turn that only thinks produces neither
 The answer, if you want it: `git checkout stage-1-solution`, or `git diff main stage-1-solution --
 src/agentgraph/agent/graph.py` to read it without moving your working tree. The `solutions` branch
 is the same code. See [`exercises/README.md`](exercises/README.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
