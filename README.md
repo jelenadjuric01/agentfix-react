@@ -458,7 +458,7 @@ And run 2 is the same agent taking nine turns and three times the tokens for the
 
 The workshop suite is three tasks and one attempt each, which is why the two runs above disagree.
 The vendored HumanEvalFix subset is 20 independent bugs with real tests, and it is the number worth
-quoting (`results/humanevalfix.json`). Same model family, same 10-step budget, one attempt per task
+quoting (`results/precomputed/humanevalfix.json`). Same model family, same 10-step budget, one attempt per task
 in every row:
 
 | Edition | pass@1 | median steps | tokens | wall clock | peak prompt |
