@@ -272,6 +272,9 @@ A healthy Option 1 machine reports:
 READY 41 tok/s (874 tokens in 21.4s)
 ```
 
+Anything that fails there, and everything else that has gone wrong for someone setting
+this up, is in [TROUBLESHOOT.md](TROUBLESHOOT.md).
+
 ## Use
 
 ```bash
@@ -570,6 +573,12 @@ verdict, the other watches actions, and a turn that only thinks produces neither
 The answer, if you want it: `git checkout stage-1-solution`, or `git diff main stage-1-solution --
 src/agentgraph/agent/graph.py` to read it without moving your working tree. The `solutions` branch
 is the same code. See [`exercises/README.md`](exercises/README.md).
+
+## Cleaning up
+
+The model is ~8 GB and Ollama keeps it after the workshop ends. Removing everything this
+repository put on your machine — models, Ollama, `uv`, the Docker image, the clone — is
+[CLEANUP.md](CLEANUP.md), per operating system.
 
 ## License
 
