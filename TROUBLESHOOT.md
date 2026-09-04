@@ -342,8 +342,7 @@ git checkout solutions           # the finished agent, if you would rather read 
 <summary><b>The agent prints <code>NOT SOLVED</code></b></summary>
 
 Not necessarily your bug. Real models do not fix every task — the 20-task benchmark on this
-edition is 0.80 — and `qwen3:1.7b` is noticeably less reliable at multi-step tool use than
-Mellum2.
+edition is 0.80 — and `qwen3:1.7b` is a much smaller model than Mellum2 and may not do as well.
 
 Read the `--verbose` trace before assuming your code is wrong. You are looking for the shape of a
 working loop: the model thinks, calls `run_tests`, looks around with `list_files` / `read_file`,

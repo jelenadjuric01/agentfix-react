@@ -223,9 +223,9 @@ export MELLUM_MODEL=qwen3:1.7b     # PowerShell: $env:MELLUM_MODEL="qwen3:1.7b"
 No `ollama create` step: the client sends `num_ctx` with every request and Ollama's native API
 honours it. Set `MELLUM_MODEL` in every shell you use, or put it in your shell profile.
 
-A 1.7B model fixes fewer bugs than Mellum2 and gets its tool-call JSON wrong more often. That is
-not a broken setup — it is why the loop guards exist. Untested by the author for solve rates;
-the reasoning and tool-calling channels were verified.
+It is a much smaller model than Mellum2 and may not do as well; a run that ends `NOT SOLVED` is
+not a broken setup — it is why the loop guards exist. The reasoning and tool-calling channels were
+verified against it.
 </details>
 
 <details>
