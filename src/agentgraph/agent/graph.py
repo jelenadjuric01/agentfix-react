@@ -58,15 +58,18 @@ What it does NOT do, and this is the part worth the workshop's time:
     The rule that makes this matter is the API's, not ours: every tool call the model made
     must get exactly one reply, matched by `tool_call_id`, and a request that leaves one
     unanswered is rejected on the NEXT turn — one step away from the code that caused it.
-    Keeping that invariant is ours. See `tools_node`, where even a call the guard REFUSES to
+    Keeping that invariant is ours. See `guard_node`, where even a call the guard REFUSES to
     run still produces a message.
-  - Either loop guard. For the ACTION guard the seams exist — `wrap_tool_call` in LangChain
-    1.x middleware, and a `post_model_hook` if you build the agent with `create_react_agent`
-    — but a seam is only a place to put a decision, and the framework owns the state behind
-    it. agent/prebuilt.py builds the action guard on `wrap_tool_call` and measures the cost:
-    counters on the middleware instance survive no checkpoint and leak into the next run, and
-    the guard can answer a repeated call but never abandon the run. For the THINKING guard no
-    seam fits at all — `after_model` could count idle turns, but the counter would live on the
+  - Either loop guard's POLICY, though the action guard's plumbing is now borrowed.
+    `create_react_agent` wires `post_model_hook` by diffing the answered `tool_call_id`s
+    against the calls the model made and dispatching only what is left, so answering a call is
+    what refuses it. `guard_node` plus `route_after_guard` is that router, reproduced — the
+    hook is a `create_react_agent` argument while `Send` is public — and there is no synthetic
+    AIMessage anywhere in this file as a result. What the shape cost is measured in
+    tests/test_hook_alternative.py: the verdict fold moved to `fold_node` to stay a single
+    writer, and serialising a turn's calls became the run config's job. What no seam supplies
+    is the claim that an identical call means the model is stuck. For the THINKING guard there
+    is no seam at all — `after_model` could count idle turns, but the counter would live on the
     middleware rather than in `AgentState.idle_turns`, which is the same problem one step on.
   - The step budget, here. `recursion_limit` counts node executions, not model turns.
 """
@@ -87,6 +90,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode
+from langgraph.types import Send
 
 from agentgraph.agent.state import AgentState, initial_state
 from agentgraph.agent.trace import Tracer, TraceEvent, prompt_tokens_of, reasoning_of
@@ -385,34 +389,57 @@ def build_graph(
             "idle_turns": 0 if acted(reply) else state["idle_turns"] + 1,
         }
 
-    def tools_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-        """Guard the model's calls, then let ToolNode run whatever survives.
+    def guard_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+        """Refuse the calls that mean the model is stuck, by ANSWERING them.
 
-        Two responsibilities, deliberately in this order. The guard is ours — no framework
-        knows that a repeated call means the model is stuck. Executing the rest is ToolNode's,
-        and it gets the whole surviving batch in one invocation rather than being driven one
-        call at a time: dispatch, ordering, unknown tool names, argument validation and the
-        `handle_tool_errors` recovery are all its job, and it is better at them than a loop
-        here would be.
+        This is the framework's own shape for the job, in a hand-built graph. `route_after_guard`
+        works out what still needs running by diffing the calls the model made against the
+        `tool_call_id`s already answered — so answering a call here is what refuses it, and the
+        surviving subset never has to be restated anywhere. `create_react_agent` wires its
+        `post_model_hook` exactly this way. The hook itself is a `create_react_agent` argument
+        rather than a `StateGraph` one, but `Send` is public, so the shape is ours to use.
 
-        The API requires an answer to every call the model made — skip one `tool_call_id` and
-        the next request is rejected — so every branch below produces exactly one message per
-        call, including the branches where nothing ran.
+        What no framework supplies is the policy: that a call identical to the last one means the
+        model learned nothing from the result and re-running it would buy the same output for
+        another step. Note that `call_signature` ignores the reasoning that led to the call —
+        this edition's models talk themselves into the same useless call by a fresh route every
+        time, and new reasoning must not buy a repeat another turn.
+
+        The guard's own memory — the previous call's identity and the repeat count — lives in
+        `AgentState`, which is what makes it survive a checkpoint and stay scoped to this run.
+        agent/prebuilt.py keeps the same two values on a middleware instance instead, and its
+        docstring records what that costs.
         """
+        # The oracle guarantee. It used to be pinned on a single batched `ToolNode.invoke` from
+        # inside this node; now the dispatch below is the GRAPH's, one task per call, so the only
+        # place that can serialise it is the run config. Measured in
+        # tests/test_hook_alternative.py: `max_concurrency=1` throttles Send fan-out too, so the
+        # guarantee survives the change of shape — but it moved out of this file's reach.
+        #
+        # Which is exactly why it is checked here instead of documented and hoped for. Without
+        # it, a turn calling write_file and run_tests together can have the tests measure the
+        # file as it was BEFORE the write, and `fold_node` would then take that stale-but-green
+        # ExecResult as the verdict — the precise "believe the tests, not the model" guarantee
+        # this project is built on. A raise rather than an assert: `python -O` strips asserts,
+        # and a false SOLVED is not the kind of thing to lose to an optimisation flag.
+        if config.get("max_concurrency") != 1:
+            raise RuntimeError(
+                "the tool step fans out one task per call, so the run config must carry "
+                "max_concurrency=1 or a turn's calls execute in parallel and run_tests can "
+                "measure the workspace as it was before a write in the same turn; "
+                f"got {config.get('max_concurrency')!r}"
+            )
+
         message = state["messages"][-1]
         assert isinstance(message, AIMessage)
 
         replies: list[AnyMessage] = []
-        runnable: list[dict[str, Any]] = []
         signature = state["last_signature"]
         hits = state["guard_hits"]
 
         for call, current in requested_calls(message):
             name = str(call.get("name") or "unknown")
 
-            # Loop guard. A model that repeats a call verbatim learned nothing from the result,
-            # so re-running it would burn a step for the same output. Send an observation
-            # instead and let it try something else.
             if current == signature:
                 hits += 1
                 replies.append(
@@ -425,55 +452,53 @@ def build_graph(
                 tracer.note("tool", name, f"guarded — identical call #{hits + 1} in a row")
                 continue
 
-            # Progress: reset the counter and remember this call as the new baseline.
+            # Progress: reset the counter and remember this call as the new baseline. Note the
+            # baseline advances for a call that is merely DISPATCHED, not one known to have
+            # succeeded — deliberate: a call that ran and failed is still new information, and
+            # repeating it verbatim is still the model going in circles.
             hits = 0
             signature = current
 
-            runnable.append(call)
+        return {"messages": replies, "last_signature": signature, "guard_hits": hits}
 
-        if runnable:
-            # One invocation for the whole turn. The synthetic message exists because ToolNode
-            # reads its calls off the last message, and the original may contain calls the
-            # guard just refused — the surviving subset has to be stated somewhere.
-            batch = AIMessage(content="", tool_calls=runnable)
-            # `max_concurrency=1` is not a performance knob, it is the oracle guarantee.
-            #
-            # ToolNode runs a batch through `get_executor_for_config`, which is a real
-            # ThreadPoolExecutor even when no concurrency was asked for — so the calls in one
-            # turn execute in PARALLEL by default. Measured with a slow write and a fast check
-            # in one message: the check started and finished while the write was still in
-            # flight. Message order is preserved either way, so the trace looks innocent.
-            #
-            # That is a false-SOLVED waiting to happen. A turn calling write_file and run_tests
-            # together could have the tests measure the file as it was BEFORE the write, and
-            # the fold below would then take that stale-but-green ExecResult as the verdict —
-            # the exact "believe the tests, not the model" guarantee this project is built on.
-            #
-            # One worker restores the original loop's one-call-at-a-time execution while
-            # keeping the single batched invocation. Merged into the ambient config rather than
-            # replacing it: LangGraph injects runtime keys that ToolNode requires, and passing
-            # a bare dict here fails with "Missing required config key".
-            produced = tool_node.invoke(
-                {"messages": [batch]}, config={**config, "max_concurrency": 1}
-            )["messages"]
-            # The invariant this whole node exists to uphold, and a raise rather than an
-            # assert on purpose. This is not a type narrowing — it is a claim about a third
-            # party's behaviour across versions, and `python -O` strips asserts. Losing it
-            # means an unanswered `tool_call_id`, which the API rejects on the NEXT request,
-            # one turn away from the code that caused it.
-            if len(produced) != len(runnable):
-                raise RuntimeError(
-                    f"ToolNode answered {len(produced)} of {len(runnable)} tool calls; "
-                    "every call the model made must get exactly one reply"
-                )
-            replies.extend(produced)
+    def fold_node(state: AgentState) -> dict[str, Any]:
+        """The single writer of `tests_passed`, and the reason it can stay reducer-free.
 
-        return {
-            "messages": replies,
-            "last_signature": signature,
-            "guard_hits": hits,
-            "tests_passed": tests_passed_after(replies, state["tests_passed"]),
-        }
+        This node exists because of the fan-out. With one task per call, several tool tasks land
+        in the same superstep, and two writes to one reducer-free key in one step is something
+        LangGraph refuses outright — `InvalidUpdateError`, measured in
+        tests/test_hook_alternative.py. Folding here keeps one writer, which lets `tests_passed`
+        stay a plain bool: state.py argues for that on its own merits, because a reducer is
+        handed (current, incoming) and cannot tell "the suite went green" from "the workspace
+        changed, so the verdict is void".
+
+        It also carries the invariant the tool step has to uphold. Every call the model made must
+        get exactly one reply, matched by `tool_call_id`; leave one unanswered and the API rejects
+        the NEXT request, a turn away from the cause. Checked here because here is the first point
+        where the whole turn is visible — the guard's refusals and the tools' answers together.
+        """
+        messages = state["messages"]
+        # THIS turn's replies, and no more: everything appended after the last AIMessage. The
+        # fold recognises artifacts by TYPE, and a checkpoint round-trip hands them back as plain
+        # dicts — so folding the whole history would quietly stop recognising anything at all.
+        last_ai = next(
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], AIMessage)
+        )
+        asked = messages[last_ai]
+        assert isinstance(asked, AIMessage)
+        turn = messages[last_ai + 1 :]
+
+        requested = [call["id"] for call in asked.tool_calls]
+        answered = [m.tool_call_id for m in turn if isinstance(m, ToolMessage)]
+        if len(answered) != len(requested):
+            raise RuntimeError(
+                f"the tool step answered {len(answered)} of {len(requested)} tool calls; "
+                "every call the model made must get exactly one reply"
+            )
+
+        return {"tests_passed": tests_passed_after(turn, state["tests_passed"])}
 
     def nudge_node(state: AgentState) -> dict[str, Any]:
         """A reply that acted on nothing is not a stop condition — say so and go again.
@@ -513,7 +538,7 @@ def build_graph(
         # the model can read the results. Note this skips the `is_done` check on purpose: the
         # check belongs on a turn where the model had nothing more to do.
         if acted(message):
-            return "tools"
+            return "guard"
 
         # No action. This is the only place the run can end successfully — and it ends because
         # the tests pass, not because the model stopped calling tools. Checked FIRST, before
@@ -547,6 +572,43 @@ def build_graph(
 
         return "nudge"
 
+    def route_after_guard(state: AgentState) -> str | list[Send]:
+        """Dispatch whatever the guard let through. The framework's router, reproduced.
+
+        `pending` is the calls the model made minus the ones already answered — which is the
+        whole mechanism behind refusing by answering. Each one is `Send`-ed as its own task, so
+        no message anywhere has to state the surviving subset.
+
+        The diff is scoped to THIS TURN, and that is deliberately stricter than the framework's
+        own version of this router, which collects answered ids from the whole message history
+        and so quietly assumes `tool_call_id`s are globally unique. Real ones are — ChatOllama
+        synthesises a uuid per call. But the ids are the MODEL's to choose, and a model that
+        reuses one would have its second call silently treated as already answered and never
+        run. Measured with llm/fake.py, whose scripted calls all carry `call_1`: against the
+        whole history, turn two dispatched nothing and the fold then reported an unanswered
+        call. A turn is the only window in which the pairing is guaranteed to mean anything.
+
+        When the guard refused everything, there is nothing to dispatch and no tool will run,
+        but the turn still has to be folded and routed — so it goes straight to `fold`.
+        """
+        messages = state["messages"]
+        last_ai = next(
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], AIMessage)
+        )
+        asked = messages[last_ai]
+        assert isinstance(asked, AIMessage)
+        answered = {
+            m.tool_call_id for m in messages[last_ai + 1 :] if isinstance(m, ToolMessage)
+        }
+        pending = [call for call in asked.tool_calls if call["id"] not in answered]
+        if not pending:
+            return "fold"
+        # `type="tool_call"` selects ToolNode's per-call Send payload: it hydrates the state it
+        # needs from the graph's channels instead of being handed an inlined snapshot.
+        return [Send("tools", [dict(call, type="tool_call")]) for call in pending]
+
     def route_after_tools(state: AgentState) -> str:
         """Stop if the model is stuck or out of budget; otherwise take another turn.
 
@@ -574,13 +636,20 @@ def build_graph(
 
     graph = StateGraph(AgentState)
     graph.add_node("agent", agent_node)
-    graph.add_node("tools", tools_node)
+    graph.add_node("guard", guard_node)
+    # ToolNode is added as a NODE now, rather than invoked by hand from inside one. Dispatch,
+    # ordering, unknown tool names, argument validation and the `handle_tool_errors` recovery
+    # are its job, and the graph drives it one call at a time through the Send above.
+    graph.add_node("tools", tool_node)
+    graph.add_node("fold", fold_node)
     graph.add_node("nudge", nudge_node)
     graph.add_edge(START, "agent")
     # "agent" is a destination of its own router: the unreadable-reply path retries the model
     # directly, with no tool call to execute and no correction node to pass through.
-    graph.add_conditional_edges("agent", route_after_agent, ["agent", "tools", "nudge", END])
-    graph.add_conditional_edges("tools", route_after_tools, ["agent", END])
+    graph.add_conditional_edges("agent", route_after_agent, ["agent", "guard", "nudge", END])
+    graph.add_conditional_edges("guard", route_after_guard, ["tools", "fold"])
+    graph.add_edge("tools", "fold")
+    graph.add_conditional_edges("fold", route_after_tools, ["agent", END])
     graph.add_edge("nudge", "agent")
 
     # With a checkpointer the graph writes a snapshot of the state after every node, keyed by
@@ -614,7 +683,7 @@ def run_agent(
     app = build_graph(llm, tools, tracer, max_steps=max_steps, checkpointer=InMemorySaver())
 
     started = time.time()
-    # `recursion_limit` is LangGraph's own backstop and counts NODE executions, not model
+    # `recursion_limit` is LangGraph's own backstop and counts SUPERSTEPS, not model
     # turns: a turn is agent + tools, and sometimes a nudge as well. Set generously, because
     # the budget that actually matters is `max_steps`, enforced in the routers above. Hitting
     # this limit raises, which is the correct behaviour for "the graph is wired wrong".
@@ -625,7 +694,12 @@ def run_agent(
             # every model and tool invocation inside the graph — including the ones ToolNode
             # makes on our behalf. This is why no node contains tracing code.
             "callbacks": [tracer],
-            "recursion_limit": max_steps * 3 + 10,
+            # Not a performance knob. The tool step fans out one task per call, and these
+            # tools are not independent: run_tests measures what write_file just wrote. One
+            # worker keeps a turn's calls in the order the model asked for them, which is what
+            # `guard_node` refuses to run without. See tests/test_hook_alternative.py.
+            "max_concurrency": 1,
+            "recursion_limit": max_steps * 5 + 10,
             # Which conversation this is. One task, one thread — the checkpointer files every
             # snapshot under it, and resuming means invoking again with the same id.
             "configurable": {"thread_id": task.task_id},

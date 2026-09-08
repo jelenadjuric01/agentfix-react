@@ -351,11 +351,16 @@ behind it. Needs `--extra prebuilt`.
   can learn from. The rule underneath is the API's — every tool call needs exactly one reply,
   keyed by `tool_call_id` — and keeping it is ours, which is why even a call the guard refuses
   to run still produces a message.
-- **Neither loop guard.** For the action guard the seams exist — `wrap_tool_call` in LangChain
-  1.x middleware, and a `post_model_hook` if you build the agent with `create_react_agent` — but a
-  seam is only a place to put a decision, and the state behind it is the framework's:
-  `agent/prebuilt.py` builds that guard on `wrap_tool_call`, and its counters survive no
-  checkpoint and leak into the next run. For the *thinking* guard it gives
+- **Neither loop guard's policy — though the action guard's plumbing is now borrowed.**
+  `create_react_agent` wires `post_model_hook` by diffing the answered `tool_call_id`s against
+  the calls the model made and dispatching only what is left, so answering a call is what
+  refuses it. `guard_node` and `route_after_guard` are that router, reproduced, because the hook
+  is a `create_react_agent` argument while `Send` is public — and there is no synthetic
+  `AIMessage` left in `graph.py` as a result. Two costs came with the shape, both measured in
+  `tests/test_hook_alternative.py`: the verdict fold moved to `fold_node` to stay a single
+  writer, and serialising a turn's calls became the run config's job, so `guard_node` refuses to
+  dispatch without `max_concurrency=1`. What no seam supplies is the claim that an identical
+  call means the model is stuck. For the *thinking* guard it gives
   you no good seam at all: `after_model` could count idle turns, but the counter would live on
   the middleware instance, so it would not survive a checkpoint and would leak into the next
   run. `AgentState.idle_turns` is scoped to the run because the state is.
