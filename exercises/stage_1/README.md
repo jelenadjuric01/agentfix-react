@@ -1,6 +1,6 @@
 # Stage 1 — A turn that changed nothing
 
-Open `src/agentgraph/agent/graph.py` and find the four `EXERCISE(stage-1)` markers. Together they
+Open `src/agentgraph/agent/graph.py` and find the three `EXERCISE(stage-1)` markers. Together they
 are one decision: what happens when the model spends a turn and asks for nothing.
 
 The Instruct model in the previous edition acted on every turn but the last, so a turn like that
@@ -31,26 +31,7 @@ express a reset**. It is handed `(current, incoming)` and nothing else, so it ca
 more idle turn" from "that turn acted, start again". `agent_node` can tell, because it is holding
 the reply. That makes it the single writer of this key, and the reason it returns the whole value.
 
-**3. The tail of `route_after_agent`.** Everything above `if acted(message): return "guard"` is
-written for you. What is left is the turn where the model asked for nothing, and it has four
-answers, in an order you have to choose:
-
-- the tests pass → `END`. The successful exit, and still the only one.
-- the step budget is gone (`state["step"] >= max_steps`) → `END`.
-- `state["idle_turns"] >= MAX_IDLE_TURNS` → `END`. The thinking guard, and the reason this
-  edition needed one. Call `tracer.note("llm", "assistant", ...)` on the way out so the trace
-  says why the run stopped — a run abandoned by a guard and a run that ran out of budget are
-  different failures, and a trace that cannot tell them apart is the kind of observability this
-  edition already caught lying once.
-- otherwise → `"nudge"`, which appends a correction and sends the model back for another turn.
-
-Two words of care on that trace line. Word it from what was actually observed — *no tool call* —
-and not as "turns of reasoning": `idle_turns` counts any turn that asked for nothing, and a turn
-can ask for nothing without having reasoned at all (a model that skipped thinking, or a reply cut
-off by `max_tokens` before it reached its call). `reasoning_of(message)` says only what *this* turn
-shows, which is the most the line is entitled to claim.
-
-**4. `nudge_node`'s choice of nudge.** `NUDGE` and `NUDGE_AFTER_THINKING` are both written for
+**3. `nudge_node`'s choice of nudge.** `NUDGE` and `NUDGE_AFTER_THINKING` are both written for
 you, and `reasoning_of(message)` tells you which turn you are looking at. A model that said
 nothing needs pointing at the failure; a model that reasoned its way to a conclusion and then
 stopped needs telling that a conclusion is not a change. A nudge that misdiagnoses the turn is a
@@ -58,9 +39,12 @@ nudge the model can reasonably ignore.
 
 ## The traps
 
-**Ordering.** The check on the tests comes first. A solved run's closing turn is a turn with no
-tool call — that is what a model does when it has nothing left to do — and any guard that reads
-it before `is_done` reports the successful run as a stalled one.
+**Read the router you were given.** `route_after_agent`'s no-action tail is written for you, and
+the order of its four answers is the whole of it: the check on the tests comes FIRST. A solved
+run's closing turn is a turn with no tool call — that is what a model does when it has nothing
+left to do — and any guard that reads it before `is_done` reports a successful run as a stalled
+one. Your `acted` and your `idle_turns` are what that ordering consumes, so it is worth reading
+before you write either.
 
 **`MAX_IDLE_TURNS` is 2, not 1.** A model legitimately spends a turn planning after a surprising
 failure, and cutting it off there punishes exactly the behaviour this edition exists to get. Two
