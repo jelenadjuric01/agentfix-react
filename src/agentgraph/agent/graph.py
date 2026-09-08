@@ -60,9 +60,14 @@ What it does NOT do, and this is the part worth the workshop's time:
     unanswered is rejected on the NEXT turn — one step away from the code that caused it.
     Keeping that invariant is ours. See `tools_node`, where even a call the guard REFUSES to
     run still produces a message.
-  - Either loop guard. LangGraph has no hook for either one. LangChain 1.x middleware gives
-    you a seam for the action guard (`wrap_tool_call`) but not the policy, and nothing at all
-    for "this model has been thinking for three turns and has not moved".
+  - Either loop guard. For the ACTION guard the seams exist — `wrap_tool_call` in LangChain
+    1.x middleware, and a `post_model_hook` if you build the agent with `create_react_agent`
+    — but a seam is only a place to put a decision, and the framework owns the state behind
+    it. agent/prebuilt.py builds the action guard on `wrap_tool_call` and measures the cost:
+    counters on the middleware instance survive no checkpoint and leak into the next run, and
+    the guard can answer a repeated call but never abandon the run. For the THINKING guard no
+    seam fits at all — `after_model` could count idle turns, but the counter would live on the
+    middleware rather than in `AgentState.idle_turns`, which is the same problem one step on.
   - The step budget, here. `recursion_limit` counts node executions, not model turns.
 """
 
