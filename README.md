@@ -351,8 +351,11 @@ behind it. Needs `--extra prebuilt`.
   can learn from. The rule underneath is the API's — every tool call needs exactly one reply,
   keyed by `tool_call_id` — and keeping it is ours, which is why even a call the guard refuses
   to run still produces a message.
-- **Neither loop guard.** LangGraph has no hook for either. LangChain 1.x gives you a seam for
-  the action guard (`wrap_tool_call`) but not the policy — and for the *thinking* guard it gives
+- **Neither loop guard.** For the action guard the seams exist — `wrap_tool_call` in LangChain
+  1.x middleware, and a `post_model_hook` if you build the agent with `create_react_agent` — but a
+  seam is only a place to put a decision, and the state behind it is the framework's:
+  `agent/prebuilt.py` builds that guard on `wrap_tool_call`, and its counters survive no
+  checkpoint and leak into the next run. For the *thinking* guard it gives
   you no good seam at all: `after_model` could count idle turns, but the counter would live on
   the middleware instance, so it would not survive a checkpoint and would leak into the next
   run. `AgentState.idle_turns` is scoped to the run because the state is.
