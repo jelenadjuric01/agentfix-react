@@ -408,6 +408,57 @@ class TestBudgetAndGuard(GraphTestCase):
         self.assertFalse(any("guarded" in e.detail for e in tracer.events))
 
 
+class TestFanOutContract(GraphTestCase):
+    """What the guard-node shape requires of its caller, and of a turn's tool_call_ids.
+
+    The tool step is one `Send` task per pending call, which buys the guard a refusal that
+    needs no synthetic message — and moves two guarantees out of any single node's reach.
+    Both are enforced rather than documented, because both fail quietly.
+    """
+
+    def test_the_run_config_must_serialise_the_tool_step(self):
+        """A caller that forgets `max_concurrency=1` is refused, not silently raced.
+
+        `run_agent` always sets it. Anyone invoking the compiled graph directly can forget,
+        and the symptom would otherwise be a rare false SOLVED on turns that write and test
+        together — the single worst failure this project can have, and an intermittent one.
+        """
+        app = build_graph(
+            FakeChatModel(replies=[assistant_tool_call("run_tests", {}), assistant_text("ok")]),
+            self.tools,
+            Tracer(),
+            max_steps=2,
+        )
+        with self.assertRaises(RuntimeError) as ctx:
+            app.invoke(initial_state(system_prompt(self.tools), "Fix it."))
+        self.assertIn("max_concurrency=1", str(ctx.exception))
+
+    def test_a_tool_call_id_reused_across_turns_still_dispatches(self):
+        """The pending diff is scoped to the turn, so a reused id cannot swallow a call.
+
+        The framework's own router collects answered ids from the WHOLE history, which assumes
+        `tool_call_id`s are globally unique. They are the model's to choose. llm/fake.py reuses
+        `call_1` by default, which is exactly the case that exposes it: with a history-wide
+        diff, turn two dispatched nothing at all and the fold then reported an unanswered call.
+        """
+        tracer = Tracer()
+        self.run_with(
+            [
+                assistant_tool_call("list_files", {}),
+                assistant_tool_call("run_tests", {}),
+                assistant_text("done"),
+            ],
+            max_steps=3,
+            tracer=tracer,
+        )
+        executed = [e.detail for e in tracer.events if e.kind == "tool"]
+        self.assertEqual(len(executed), 2, "both turns' calls ran despite the shared id")
+        self.assertFalse(
+            any("guarded" in detail for detail in executed),
+            "neither call was refused — they are different calls",
+        )
+
+
 class TestToolNodeContract(GraphTestCase):
     def test_the_calls_in_one_turn_execute_one_at_a_time(self):
         """The oracle guarantee: a test run must never race a write in the same turn.
@@ -476,10 +527,20 @@ class TestCheckpointing(GraphTestCase):
     """State the framework can snapshot, which only works if the state holds everything."""
 
     def _run(self, app, llm, state=None):
-        """Invoke `app` on thread "t". `state=None` starts a run; a partial dict resumes one."""
+        """Invoke `app` on thread "t". `state=None` starts a run; a partial dict resumes one.
+
+        `max_concurrency=1` is not decoration. The tool step fans out one task per call, so
+        serialising them is the run config's job and `guard_node` refuses to proceed without
+        it — which is what these tests would otherwise discover as a confusing error rather
+        than as the requirement it is. `run_agent` sets it for every ordinary run.
+        """
         return app.invoke(
             initial_state(system_prompt(self.tools), "Fix it.") if state is None else state,
-            config={"configurable": {"thread_id": "t"}, "callbacks": [Tracer()]},
+            config={
+                "configurable": {"thread_id": "t"},
+                "callbacks": [Tracer()],
+                "max_concurrency": 1,
+            },
         )
 
     def test_a_run_can_be_resumed_from_its_checkpoint(self):

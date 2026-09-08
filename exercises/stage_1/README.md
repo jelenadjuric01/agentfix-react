@@ -31,7 +31,7 @@ express a reset**. It is handed `(current, incoming)` and nothing else, so it ca
 more idle turn" from "that turn acted, start again". `agent_node` can tell, because it is holding
 the reply. That makes it the single writer of this key, and the reason it returns the whole value.
 
-**3. The tail of `route_after_agent`.** Everything above `if acted(message): return "tools"` is
+**3. The tail of `route_after_agent`.** Everything above `if acted(message): return "guard"` is
 written for you. What is left is the turn where the model asked for nothing, and it has four
 answers, in an order you have to choose:
 
