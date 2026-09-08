@@ -535,11 +535,37 @@ def build_graph(
         if acted(message):
             return "guard"
 
-        # No action: the model spent a turn and asked for nothing. Four answers from here, and
-        # their order is as much of the decision as the answers are.
-        #
-        # EXERCISE(stage-1): see exercises/stage_1/README.md
-        raise NotImplementedError("stage 1: the model asked for nothing — now what?")
+        # No action. This is the only place the run can end successfully — and it ends because
+        # the tests pass, not because the model stopped calling tools. Checked FIRST, before
+        # the guards below, so the closing turn of a solved run is never mistaken for a model
+        # that has stalled.
+        if is_done(state):
+            return END
+        if state["step"] >= max_steps:
+            return END
+
+        # The thinking loop guard, and the reason this edition needed one. A model that reasons
+        # and does not act has produced the most expensive kind of turn there is and moved
+        # nothing, and a model that does it twice running is not deliberating — it is stuck in
+        # a way the action guard above cannot see, because there is no action to compare.
+        if state["idle_turns"] >= MAX_IDLE_TURNS:
+            # Worded from what was actually observed, which is "no tool call" — NOT "turns of
+            # reasoning". `idle_turns` counts any turn that asked for nothing, and a turn can
+            # ask for nothing without having reasoned (a model that skipped thinking, or a
+            # reply cut off by `max_tokens` before it got to the call). Saying "reasoning"
+            # would send whoever reads this trace looking for deliberation that never
+            # happened — the exact failure this edition exists to fix, reintroduced in the
+            # log line. `thought` says only what this turn shows.
+            thought = "after reasoning" if reasoning_of(message) else "without reasoning"
+            tracer.note(
+                "llm",
+                "assistant",
+                f"abandoned — {state['idle_turns']} consecutive turns with no tool call "
+                f"({thought} on the last one)",
+            )
+            return END
+
+        return "nudge"
 
     def route_after_guard(state: AgentState) -> str | list[Send]:
         """Dispatch whatever the guard let through. The framework's router, reproduced.
