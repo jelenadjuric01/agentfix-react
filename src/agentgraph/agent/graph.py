@@ -265,12 +265,14 @@ def requested_calls(message: AIMessage) -> list[tuple[dict[str, Any], str]]:
     return [(dict(call), call_signature(dict(call))) for call in message.tool_calls]
 
 
-def acted(message: AIMessage) -> bool:  # noqa: ARG001
-    """Did this turn ask for anything to happen? The distinction the thinking guard is built on.
+def acted(message: AIMessage) -> bool:
+    """Did this turn ask for anything to happen?
 
-    EXERCISE(stage-1): see exercises/stage_1/README.md
+    The distinction the thinking guard is built on: a turn that called a tool moved something,
+    a turn that only talked did not. A reply the client could not parse at all never becomes a
+    message and so never reaches here — `agent_node` handles that one.
     """
-    raise NotImplementedError("stage 1: did this turn ask for anything to happen?")
+    return bool(message.tool_calls)
 
 
 def guard_observation(name: str, hits: int) -> str:
@@ -380,10 +382,11 @@ def build_graph(
             "completion_tokens": completion_tokens_of(reply),
             "peak_prompt_tokens": prompt_tokens_of(reply),
             "reasoning_turns": 1 if thought else 0,
-            # `idle_turns` belongs here, and it is not written like any of the keys above it.
-            # See AgentState.idle_turns. Absent for now, so the counter never moves.
-            #
-            # EXERCISE(stage-1): see exercises/stage_1/README.md
+            # The one absolute value rather than a delta, because this counter has to reset
+            # and a reducer cannot express a reset. See AgentState.idle_turns. This node is its
+            # only writer, and it is the node that knows whether the turn it just took asked
+            # for anything.
+            "idle_turns": 0 if acted(reply) else state["idle_turns"] + 1,
         }
 
     def guard_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -500,13 +503,15 @@ def build_graph(
     def nudge_node(state: AgentState) -> dict[str, Any]:
         """A reply that acted on nothing is not a stop condition — say so and go again.
 
-        Right now every such turn gets the same correction, and there are two to choose from.
-
-        EXERCISE(stage-1): see exercises/stage_1/README.md
+        Which of the two nudges depends on whether the model thought first, because the two
+        failures are different and deserve different corrections. A model that said nothing
+        and did nothing needs pointing at the failure; a model that reasoned its way to a
+        conclusion and then stopped needs telling that a conclusion is not a change.
         """
         message = state["messages"][-1]
         assert isinstance(message, AIMessage)
-        return {"messages": [HumanMessage(content=NUDGE)]}
+        text = NUDGE_AFTER_THINKING if reasoning_of(message) else NUDGE
+        return {"messages": [HumanMessage(content=text)]}
 
     def route_after_agent(state: AgentState) -> str:
         """Where to go after a model turn. The only place a run can end successfully."""
